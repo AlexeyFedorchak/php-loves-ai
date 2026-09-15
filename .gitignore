@@ -1,0 +1,33 @@
+/vendor/
+composer.lock
+.phpunit.cache/
+.phpunit.result.cache
+phpunit.xml
+phpstan.neon
+
+# Python sources: virtualenvs and PyInstaller build output
+.venv/
+__pycache__/
+*.pyc
+/python/**/build/
+/python/**/dist/
+*.spec
+
+# Downloaded binaries and model weights
+/models/
+/.cache/
+*.gguf
+*.onnx
+*.safetensors
+
+# Local secrets and notes
+.env
+.env.*
+/approach.pdf
+
+# Local runtime data (models pulled with a relative --dir, logs)
+/var/
+
+.DS_Store
+.idea/
+.vscode/

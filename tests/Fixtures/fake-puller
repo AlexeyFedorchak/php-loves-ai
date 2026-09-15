@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+# Stands in for the compiled puller binary: echoes its arguments on stderr and
+# reports every model as pulled, except "broken/model" which fails.
+echo "args: $*" >&2
+
+dir=""
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --dir) dir="$2"; shift 2 ;;
+        --revision) shift 2 ;;
+        --) shift; break ;;
+        *) break ;;
+    esac
+done
+
+status=0
+for model in "$@"; do
+    if [ "$model" = "broken/model" ]; then
+        echo "[puller] Error: failed to pull $model" >&2
+        status=1
+        continue
+    fi
+    printf '{"model": "%s", "path": "%s/%s"}\n' "$model" "$dir" "$model"
+done
+
+exit $status
