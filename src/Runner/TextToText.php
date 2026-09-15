@@ -89,38 +89,17 @@ final class TextToText extends BinaryRunner
      */
     protected function ensureModelIsSupported(string $model, string $modelPath): void
     {
-        $unsupported = fn (string $reason): UnsupportedModelException => new UnsupportedModelException($model, $modelPath, sprintf(
+        $problem = TransformersModel::problem($modelPath);
+        if ($problem === null) {
+            return;
+        }
+
+        throw new UnsupportedModelException($model, $modelPath, sprintf(
             '%s cannot generate text: %s Use a transformers text generation model instead, e.g. %s (browse: %s).',
             $model,
-            $reason,
+            $problem,
             self::EXAMPLE_MODEL,
             self::COMPATIBLE_MODELS_URL,
         ));
-
-        if (is_file("{$modelPath}/model_index.json")) {
-            throw $unsupported('it is an image generation model, made for text-to-image.');
-        }
-
-        if (!is_file("{$modelPath}/config.json")) {
-            throw $unsupported(self::has($modelPath, '*.gguf')
-                ? 'it is in GGUF format, which is made for llama.cpp and Ollama, not transformers.'
-                : "it is not a complete transformers model ({$modelPath}/config.json is missing). It may be an add-on such as a LoRA adapter, a model in another format, or a pull that did not finish.");
-        }
-
-        $config = json_decode((string) file_get_contents("{$modelPath}/config.json"), true);
-        if (is_array($config) && isset($config['auto_map'])) {
-            throw $unsupported('it needs its own Python code to run, which the runner does not execute for security reasons.');
-        }
-
-        if (!self::has($modelPath, '*.safetensors') && !self::has($modelPath, '*.bin')) {
-            throw $unsupported(self::has($modelPath, '*.onnx') || self::has($modelPath, 'onnx/*.onnx')
-                ? 'it only has ONNX weights, which the runner cannot load.'
-                : 'its weights (*.safetensors or *.bin files) are missing. The pull may not have finished.');
-        }
-    }
-
-    private static function has(string $dir, string $pattern): bool
-    {
-        return (glob("{$dir}/{$pattern}") ?: []) !== [];
     }
 }

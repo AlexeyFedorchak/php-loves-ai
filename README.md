@@ -7,7 +7,7 @@ Run small Hugging Face AI models locally from PHP — no Python installation req
 The Composer package itself is tiny and contains only PHP code. The heavy parts live outside of it:
 
 1. **Puller binary** — a Python script compiled with PyInstaller that pulls models from Hugging Face and saves them locally.
-2. **Runner binaries** — one per task (text-to-image, text-to-text), each compiled with PyInstaller. A runner loads a
+2. **Runner binaries** — one per task (text-to-image, text-to-text, image-to-text), each compiled with PyInstaller. A runner loads a
    locally saved model and runs it; within a task one runner serves many models (diffusers and transformers pick the
    right architecture from the model's own config), while tasks get separate binaries because their dependencies differ.
 3. The binaries are built per platform by GitHub Actions and attached to each GitHub release.
@@ -31,6 +31,7 @@ composer require php-loves-ai/php-loves-ai
 vendor/bin/setup                  # downloads the puller (~17 MB) and asks for your Hugging Face API key
 vendor/bin/setup text-to-image    # optional: the image generation runner (a few hundred MB)
 vendor/bin/setup text-to-text     # optional: the text generation runner (a few hundred MB)
+vendor/bin/setup image-to-text    # optional: the image description runner (a few hundred MB)
 ```
 
 ```
@@ -270,6 +271,69 @@ model was not pulled yet, `UnsupportedModelException` when the model is not a tr
 Small models run on CPU, but larger ones get slow quickly: a 0.5B model writes a few words per second on a laptop CPU,
 and each run loads the model from disk again. Run generation in a queue job rather than in a web request.
 
+## Describing images
+
+Pull a [transformers image-to-text model](https://huggingface.co/models?pipeline_tag=image-text-to-text&library=transformers)
+first. Both kinds work:
+
+- **Vision-language models** (task `image-text-to-text`), e.g. `HuggingFaceTB/SmolVLM-256M-Instruct` or
+  `HuggingFaceTB/SmolVLM-500M-Instruct`. They answer a question about the image; without one, they describe it.
+- **Captioning models** (task `image-to-text`), e.g. `Salesforce/blip-image-captioning-base` or
+  `nlpconnect/vit-gpt2-image-captioning`. They write a short caption; a prompt is the start of the caption, e.g.
+  `"a photography of"`.
+
+As with text models, the runner rejects models it cannot load before starting, with an explanation: text-only models,
+GGUF files, ONNX-only repositories and models that need their own Python code (such as Florence-2 or Moondream).
+
+### From the command line
+
+```bash
+vendor/bin/pull HuggingFaceTB/SmolVLM-256M-Instruct
+vendor/bin/image-to-text HuggingFaceTB/SmolVLM-256M-Instruct photo.jpg "What are the animals doing?"
+```
+
+```
+👀 Studying your picture with HuggingFaceTB/SmolVLM-256M-Instruct… Grab a warm drink while it finds the right words ☕
+If you wish to see all logs, re-run the command with the "--debug" option.
+🎉 HuggingFaceTB/SmolVLM-256M-Instruct says:
+The animals are sleeping.
+```
+
+| Option                 | Meaning                                                                  |
+|------------------------|--------------------------------------------------------------------------|
+| `--max-new-tokens=N`   | Maximum length of the text in tokens (default: 256)                      |
+| `--temperature=T`      | Randomness: `0` always picks the likeliest words (default: the model's own) |
+| `--seed=N`             | Random seed, for reproducible text                                       |
+| `--device=DEVICE`      | `cpu`, `cuda`, `mps`… (default: the best available)                      |
+| `--log-file=PATH`      | Append the runner's output to this file                                  |
+| `--debug`              | Show the runner's output, and the text as it is written                  |
+
+Defaults come from `config/image-to-text.php` (`log_file`).
+
+### From PHP
+
+```php
+use PhpLovesAi\Runner\ImageToText;
+
+// Finds the runner and the pulled model in the project's .local directory by itself.
+$imageToText = new ImageToText();
+
+$description = $imageToText->generate('HuggingFaceTB/SmolVLM-256M-Instruct', storage_path('app/photo.jpg'));
+
+$answer = $imageToText->generate(
+    model: 'HuggingFaceTB/SmolVLM-256M-Instruct',
+    imagePath: storage_path('app/photo.jpg'),
+    prompt: 'Is there any text in this image? Write it out.',
+    maxNewTokens: 100,
+    temperature: 0.0,
+);
+```
+
+Throws `ImageNotFoundException` when the image file does not exist, `BinaryNotInstalledException` when
+`setup image-to-text` has not been run, `ModelNotFoundException` when the model was not pulled yet,
+`UnsupportedModelException` when the model cannot read images, and `RunFailedException` (with the runner's error
+output) when generation fails, e.g. because the file is not an image.
+
 ## Releasing binaries
 
 Publishing a GitHub release runs `.github/workflows/release-binaries.yml`, which builds every binary on each supported
@@ -283,6 +347,7 @@ To build and pack locally (PyInstaller does not cross-compile, so this covers th
 python/puller/build.sh                    # → python/puller/dist/puller-<os>-<arch>
 python/runners/text-to-image/build.sh     # → python/runners/text-to-image/dist/text-to-image-<os>-<arch>/
 python/runners/text-to-text/build.sh      # → python/runners/text-to-text/dist/text-to-text-<os>-<arch>/
+python/runners/image-to-text/build.sh     # → python/runners/image-to-text/dist/image-to-text-<os>-<arch>/
 python/package.sh                         # → python/release/*.tar.gz + *.sha256
 ```
 
@@ -290,20 +355,21 @@ Linux binaries can be built from any Docker host (including a Mac): `python/buil
 `python/build-in-docker.sh linux/arm64` builds and packs them on an old glibc base, so they run on Debian 11+, Ubuntu
 20.04+ and RHEL 9+. The release workflow uses the same script.
 
-The runners bundle torch (plus diffusers or transformers), so they are built as directories (~600–700 MB, ~210–220 MB
-packed) rather than single files; Linux builds use CPU-only torch to stay within GitHub's release asset size limit.
+The runners bundle torch (plus diffusers or transformers, and torchvision for image-to-text), so they are built as
+directories (~600–700 MB, ~210–220 MB packed) rather than single files; Linux builds use CPU-only torch to stay within GitHub's release asset size limit.
 To test `setup` against local assets, serve `python/release` over HTTP and set `PHP_LOVES_AI_DOWNLOAD_URL` to its URL.
 
 ## Structure
 
 ```
-bin/                 CLI scripts exposed via vendor/bin (setup, pull, text-to-image, text-to-text)
-config/              Package config (pull.php, text-to-image.php, text-to-text.php)
+bin/                 CLI scripts exposed via vendor/bin (setup, pull, text-to-image, text-to-text, image-to-text)
+config/              Package config (pull.php, text-to-image.php, text-to-text.php, image-to-text.php)
 python/              Python sources compiled into standalone binaries (not shipped via Composer)
   puller/            Pulls models from Hugging Face and saves them locally
   runners/           One runner per task, running locally saved models
     text-to-image/   Generates images with diffusers models
     text-to-text/    Generates text with transformers models
+    image-to-text/   Describes images with transformers models
 src/
   Enum/              Model registry
   Binary/            Platform detection and installing (Installer) the prebuilt binaries
@@ -312,7 +378,8 @@ src/
   Filesystem/        LocalStorage (the fixed paths inside .local) and path helpers
   HuggingFace/       Credentials: the optional API key saved in .local/huggingface/credentials.json
   Process/           PHP wrapper that invokes the puller binary (ModelPuller)
-  Runner/            One class per task running pulled models (TextToImage, TextToText), sharing the Runner interface
+  Runner/            One class per task running pulled models (TextToImage, TextToText, ImageToText), sharing the
+                     Runner interface
   Exception/         Package exceptions
 tests/
   Unit/

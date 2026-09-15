@@ -12,6 +12,7 @@ enum Tool: string
     case Puller = 'puller';
     case TextToImage = 'text-to-image';
     case TextToText = 'text-to-text';
+    case ImageToText = 'image-to-text';
 
     public function label(): string
     {
@@ -37,6 +38,7 @@ enum Tool: string
             self::Puller => 'Pull a model: vendor/bin/pull <model>',
             self::TextToImage => 'Generate an image: vendor/bin/text-to-image <model> "<prompt>"',
             self::TextToText => 'Generate text: vendor/bin/text-to-text <model> "<prompt>"',
+            self::ImageToText => 'Describe an image: vendor/bin/image-to-text <model> <image>',
         };
     }
 
@@ -47,6 +49,7 @@ enum Tool: string
             self::Puller => null,
             self::TextToImage => 'generate images',
             self::TextToText => 'generate text',
+            self::ImageToText => 'describe images',
         };
     }
 

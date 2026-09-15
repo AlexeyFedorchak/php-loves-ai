@@ -33,7 +33,8 @@
         "bin/setup",
         "bin/pull",
         "bin/text-to-image",
-        "bin/text-to-text"
+        "bin/text-to-text",
+        "bin/image-to-text"
     ],
     "autoload": {
         "psr-4": {

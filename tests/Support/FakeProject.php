@@ -19,6 +19,8 @@ final class FakeProject
 
     public const FAKE_TEXT_TO_TEXT = __DIR__ . '/../Fixtures/fake-text-to-text';
 
+    public const FAKE_IMAGE_TO_TEXT = __DIR__ . '/../Fixtures/fake-image-to-text';
+
     public readonly string $root;
 
     public readonly LocalStorage $storage;
@@ -58,6 +60,18 @@ final class FakeProject
         }
 
         return $this;
+    }
+
+    /**
+     * Creates a file in the project, e.g. an image to read, and returns its path.
+     */
+    public function addFile(string $name, string $contents = ''): string
+    {
+        $path = "{$this->root}/{$name}";
+        is_dir(dirname($path)) || mkdir(dirname($path), 0777, true);
+        file_put_contents($path, $contents);
+
+        return $path;
     }
 
     public function remove(): void
