@@ -185,6 +185,10 @@ python/runners/text-to-image/build.sh     # → python/runners/text-to-image/dis
 python/package.sh                         # → python/release/*.tar.gz + *.sha256
 ```
 
+Linux binaries can be built from any Docker host (including a Mac): `python/build-in-docker.sh linux/amd64` or
+`python/build-in-docker.sh linux/arm64` builds and packs them on an old glibc base, so they run on Debian 11+, Ubuntu
+20.04+ and RHEL 9+. The release workflow uses the same script.
+
 The text-to-image runner bundles torch and diffusers, so it is built as a directory (~700 MB, ~220 MB packed) rather
 than a single file; Linux builds use CPU-only torch to stay within GitHub's release asset size limit.
 To test `setup` against local assets, serve `python/release` over HTTP and set `PHP_LOVES_AI_DOWNLOAD_URL` to its URL.

@@ -28,36 +28,44 @@ jobs:
             platform: darwin-arm64
           - os: ubuntu-latest
             platform: linux-x86_64
-            torch-index-url: https://download.pytorch.org/whl/cpu
+            docker-platform: linux/amd64
           - os: ubuntu-24.04-arm
             platform: linux-arm64
-            torch-index-url: https://download.pytorch.org/whl/cpu
+            docker-platform: linux/arm64
           - os: windows-latest
             platform: windows-x86_64
     defaults:
       run:
         shell: bash
-    env:
-      PYTHON: python
-      TORCH_INDEX_URL: ${{ matrix.torch-index-url }}
     steps:
       - uses: actions/checkout@v4
 
+      # Linux: built in Docker on an old glibc, so the binaries run on older distributions too.
+      - name: Build and package (Linux, in Docker)
+        if: runner.os == 'Linux'
+        run: python/build-in-docker.sh "${{ matrix.docker-platform }}" "$RUNNER_TEMP/release"
+
       - uses: actions/setup-python@v5
+        if: runner.os != 'Linux'
         with:
           python-version: '3.12'
 
-      - name: Check platform name
-        run: test "$(python/platform.sh)" = "${{ matrix.platform }}"
+      - name: Build and package
+        if: runner.os != 'Linux'
+        env:
+          PYTHON: python
+        run: |
+          test "$(python/platform.sh)" = "${{ matrix.platform }}"
+          python/puller/build.sh
+          python/runners/text-to-image/build.sh
+          python/package.sh "$RUNNER_TEMP/release"
 
-      - name: Build puller
-        run: python/puller/build.sh
-
-      - name: Build text-to-image runner
-        run: python/runners/text-to-image/build.sh
-
-      - name: Package release assets
-        run: python/package.sh "$RUNNER_TEMP/release"
+      - name: Check all assets were built
+        run: |
+          for tool in puller text-to-image; do
+            test -f "$RUNNER_TEMP/release/$tool-${{ matrix.platform }}.tar.gz"
+            test -f "$RUNNER_TEMP/release/$tool-${{ matrix.platform }}.tar.gz.sha256"
+          done
 
       - name: Upload to release
         env:
