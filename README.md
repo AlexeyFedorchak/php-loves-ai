@@ -32,13 +32,21 @@ The puller needs a Hugging Face API key in the `HUGGING_FACE_API_KEY` environmen
 ### From the command line
 
 ```bash
-vendor/bin/pull openai-community/gpt2 [--dir=~/tmp/hugging-face/models] [--revision=main] [--log-file=PATH]
+vendor/bin/pull openai-community/gpt2 [--dir=~/tmp/hugging-face/models] [--revision=main] [--log-file=PATH] [--debug]
 ```
 
-Pulls one model at a time into `<dir>/<model id>`. The puller's own output is hidden: the command prints only
-`Pulled <model> into <path>` or an error. To keep the puller's output, set a log file — each run is appended to it
-with a timestamp, the puller's output and the outcome. Exit codes: `0` success, `1` pull failed, `2` invalid usage.
-Run `vendor/bin/pull --help` for details.
+```
+☕ Pulling openai-community/gpt2… Big downloads take a moment — perfect time for a cup of tea and some cookies 🍪
+If you wish to see all logs, re-run the command with the "--debug" option.
+🎉 Pulled openai-community/gpt2 into /Users/you/tmp/hugging-face/models/openai-community/gpt2
+```
+
+The opening message is picked at random from a few cozy variants (see `PullCommand::INTROS`).
+
+Pulls one model at a time into `<dir>/<model id>`. The puller's own output is hidden unless `--debug` is given.
+To keep that output, set a log file — each run is appended to it with a timestamp, the puller's output and the
+outcome. Output is colored on terminals; set `NO_COLOR=1` to disable colors.
+Exit codes: `0` success, `1` pull failed, `2` invalid usage. Run `vendor/bin/pull --help` for details.
 
 Defaults come from `config/pull.php`:
 

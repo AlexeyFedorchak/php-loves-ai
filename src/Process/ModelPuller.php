@@ -61,19 +61,7 @@ final class ModelPuller
             return [];
         }
 
-        foreach ($models as $model) {
-            if (preg_match(self::MODEL_ID_PATTERN, $model) !== 1 || str_contains($model, '..')) {
-                throw InvalidModelIdException::forId($model);
-            }
-        }
-
-        if (!self::isApiKeySet()) {
-            throw MissingApiKeyException::forVariable(self::API_KEY_ENV);
-        }
-
-        if (!is_file($this->binaryPath) || !is_executable($this->binaryPath)) {
-            throw BinaryNotFoundException::atPath($this->binaryPath);
-        }
+        $this->ensureCanPull($models);
 
         $command = [$this->binaryPath, '--dir', $this->modelsDir];
         if ($revision !== null) {
@@ -101,6 +89,32 @@ final class ModelPuller
         }
 
         return $pulled;
+    }
+
+    /**
+     * Runs the checks pull() performs before starting the binary, without pulling anything.
+     *
+     * @param list<string> $models
+     *
+     * @throws InvalidModelIdException
+     * @throws MissingApiKeyException
+     * @throws BinaryNotFoundException
+     */
+    public function ensureCanPull(array $models): void
+    {
+        foreach ($models as $model) {
+            if (preg_match(self::MODEL_ID_PATTERN, $model) !== 1 || str_contains($model, '..')) {
+                throw InvalidModelIdException::forId($model);
+            }
+        }
+
+        if (!self::isApiKeySet()) {
+            throw MissingApiKeyException::forVariable(self::API_KEY_ENV);
+        }
+
+        if (!is_file($this->binaryPath) || !is_executable($this->binaryPath)) {
+            throw BinaryNotFoundException::atPath($this->binaryPath);
+        }
     }
 
     private static function isApiKeySet(): bool

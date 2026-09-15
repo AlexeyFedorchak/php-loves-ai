@@ -51,8 +51,60 @@ final class PullCommandTest extends TestCase
     public function testPullsModelUsingConfigWithoutShowingPullerOutput(): void
     {
         self::assertSame(PullCommand::EXIT_OK, $this->runCommand(['openai-community/gpt2']));
-        self::assertSame("Pulled openai-community/gpt2 into /models/openai-community/gpt2\n", $this->contents($this->stdout));
+        self::assertSame(
+            "☕ Pulling openai-community/gpt2… Big downloads take a moment — perfect time for a cup of tea and some cookies 🍪\n"
+            . "If you wish to see all logs, re-run the command with the \"--debug\" option.\n"
+            . "🎉 Pulled openai-community/gpt2 into /models/openai-community/gpt2\n",
+            $this->contents($this->stdout),
+        );
         self::assertSame('', $this->contents($this->stderr));
+    }
+
+    /**
+     * @param array{string, string, string} $intro
+     */
+    #[DataProvider('intros')]
+    public function testShowsPickedIntro(int $index, array $intro): void
+    {
+        $command = new PullCommand($this->fakeConfig(), $this->stdout, $this->stderr, static fn (): int => $index);
+
+        self::assertSame(PullCommand::EXIT_OK, $command->run(['openai-community/gpt2']));
+        self::assertStringStartsWith(
+            sprintf("%s %s %s\n", $intro[0], str_replace('{model}', 'openai-community/gpt2', $intro[1]), $intro[2]),
+            $this->contents($this->stdout),
+        );
+    }
+
+    /**
+     * @return iterable<string, array{int, array{string, string, string}}>
+     */
+    public static function intros(): iterable
+    {
+        foreach (PullCommand::INTROS as $index => $intro) {
+            yield "intro #{$index}" => [$index, $intro];
+        }
+    }
+
+    public function testPicksRandomIntroByDefault(): void
+    {
+        self::assertSame(PullCommand::EXIT_OK, (new PullCommand($this->fakeConfig(), $this->stdout, $this->stderr))->run(['org/model']));
+
+        $firstLine = strtok($this->contents($this->stdout), "\n");
+        $expected = array_map(
+            static fn (array $intro): string => sprintf('%s %s %s', $intro[0], str_replace('{model}', 'org/model', $intro[1]), $intro[2]),
+            PullCommand::INTROS,
+        );
+        self::assertContains($firstLine, $expected);
+    }
+
+    public function testDebugShowsPullerOutputInsteadOfHint(): void
+    {
+        self::assertSame(PullCommand::EXIT_OK, $this->runCommand(['openai-community/gpt2', '--debug']));
+
+        $stdout = $this->contents($this->stdout);
+        self::assertStringContainsString('☕ Pulling openai-community/gpt2…', $stdout);
+        self::assertStringNotContainsString('--debug', $stdout);
+        self::assertStringContainsString('args: --dir /models --revision main -- openai-community/gpt2', $this->contents($this->stderr));
     }
 
     public function testOptionsOverrideConfig(): void
@@ -108,19 +160,29 @@ final class PullCommandTest extends TestCase
         yield 'short option' => [['org/a', '-f'], 'Unknown option: -f'];
         yield 'option without value' => [['org/a', '--log-file'], 'Option --log-file requires a value.'];
         yield 'option followed by option' => [['org/a', '--dir', '--revision=main'], 'Option --dir requires a value.'];
+        yield 'flag with value' => [['org/a', '--debug=1'], 'Option --debug does not take a value.'];
         yield 'invalid model id' => [['../etc'], "Invalid Hugging Face model id: '../etc'"];
     }
 
-    public function testFailedPullHidesPullerOutputAndSuggestsLogFile(): void
+    public function testFailedPullHidesPullerOutputAndSuggestsDebug(): void
     {
         self::assertSame(PullCommand::EXIT_FAILURE, $this->runCommand(['broken/model']));
 
         self::assertSame(
             "Error: failed to pull broken/model (exit code 1).\n"
-            . "Pass --log-file=PATH (or set 'log_file' in config/pull.php) to save the puller's output.\n",
+            . "Re-run the command with the \"--debug\" option to see what went wrong.\n",
             $this->contents($this->stderr),
         );
-        self::assertSame('', $this->contents($this->stdout));
+        self::assertStringNotContainsString('Pulled', $this->contents($this->stdout));
+    }
+
+    public function testFailedPullInDebugModeShowsPullerErrorWithoutHint(): void
+    {
+        self::assertSame(PullCommand::EXIT_FAILURE, $this->runCommand(['broken/model', '--debug']));
+
+        $stderr = $this->contents($this->stderr);
+        self::assertStringContainsString('[puller] Error: failed to pull broken/model', $stderr);
+        self::assertStringEndsWith("Error: failed to pull broken/model (exit code 1).\n", $stderr);
     }
 
     public function testFailedPullPointsToLogFile(): void
@@ -149,6 +211,7 @@ final class PullCommandTest extends TestCase
 
         self::assertSame(PullCommand::EXIT_FAILURE, $this->runCommand(['org/a'], $config));
         self::assertStringContainsString('Binary not found or not executable: /nonexistent/puller', $this->contents($this->stderr));
+        self::assertSame('', $this->contents($this->stdout), 'No intro is shown when the pull cannot start.');
     }
 
     public function testReportsMissingApiKey(): void
@@ -157,6 +220,7 @@ final class PullCommandTest extends TestCase
 
         self::assertSame(PullCommand::EXIT_FAILURE, $this->runCommand(['org/a']));
         self::assertStringContainsString('Environment variable HUGGING_FACE_API_KEY is not set', $this->contents($this->stderr));
+        self::assertSame('', $this->contents($this->stdout), 'No intro is shown when the pull cannot start.');
     }
 
     /**
@@ -164,9 +228,15 @@ final class PullCommandTest extends TestCase
      */
     private function runCommand(array $args, ?PullConfig $config = null): int
     {
-        $config ??= new PullConfig(self::FAKE_PULLER, '/models', 'main');
+        // Always the first intro, so assertions on the output are stable.
+        $command = new PullCommand($config ?? $this->fakeConfig(), $this->stdout, $this->stderr, static fn (): int => 0);
 
-        return (new PullCommand($config, $this->stdout, $this->stderr))->run($args);
+        return $command->run($args);
+    }
+
+    private function fakeConfig(): PullConfig
+    {
+        return new PullConfig(self::FAKE_PULLER, '/models', 'main');
     }
 
     /**
