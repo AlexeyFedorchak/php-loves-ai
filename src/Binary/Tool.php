@@ -11,12 +11,13 @@ enum Tool: string
 {
     case Puller = 'puller';
     case TextToImage = 'text-to-image';
+    case TextToText = 'text-to-text';
 
     public function label(): string
     {
         return match ($this) {
             self::Puller => 'puller',
-            self::TextToImage => 'text-to-image runner',
+            default => "{$this->value} runner",
         };
     }
 
@@ -25,7 +26,27 @@ enum Tool: string
     {
         return match ($this) {
             self::Puller => 'vendor/bin/setup',
-            self::TextToImage => 'vendor/bin/setup text-to-image',
+            default => "vendor/bin/setup {$this->value}",
+        };
+    }
+
+    /** What the binary lets users do, and how, e.g. 'Generate an image: vendor/bin/text-to-image <model> "<prompt>"'. */
+    public function usage(): string
+    {
+        return match ($this) {
+            self::Puller => 'Pull a model: vendor/bin/pull <model>',
+            self::TextToImage => 'Generate an image: vendor/bin/text-to-image <model> "<prompt>"',
+            self::TextToText => 'Generate text: vendor/bin/text-to-text <model> "<prompt>"',
+        };
+    }
+
+    /** Invitation to install a runner, e.g. "generate images". Null for the puller, which setup installs by default. */
+    public function purpose(): ?string
+    {
+        return match ($this) {
+            self::Puller => null,
+            self::TextToImage => 'generate images',
+            self::TextToText => 'generate text',
         };
     }
 
@@ -40,7 +61,7 @@ enum Tool: string
     {
         return match ($this) {
             self::Puller => Platform::binaryName($this->value),
-            self::TextToImage => $this->value . '-' . Platform::current(),
+            default => $this->value . '-' . Platform::current(),
         };
     }
 
@@ -49,7 +70,7 @@ enum Tool: string
     {
         return match ($this) {
             self::Puller => $this->archiveRoot(),
-            self::TextToImage => $this->archiveRoot() . '/' . Platform::binaryName($this->value),
+            default => $this->archiveRoot() . '/' . Platform::binaryName($this->value),
         };
     }
 }

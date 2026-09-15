@@ -35,6 +35,7 @@ final class SetupCommand extends Command
           binary             Which binaries to install (default: puller)
                                puller         needed by `pull` (~17 MB)
                                text-to-image  needed by `text-to-image` (a few hundred MB)
+                               text-to-text   needed by `text-to-text` (a few hundred MB)
 
         Options:
           --token=KEY        Save this Hugging Face API key instead of asking for it
@@ -116,13 +117,13 @@ final class SetupCommand extends Command
 
         $exitCode = $this->succeeded('All set! Happy hacking 🍪');
 
-        if (in_array(Tool::Puller, $tools, true)) {
-            $this->writeLine('👉 Pull a model: vendor/bin/pull <model>', self::GREY);
+        foreach ($tools as $tool) {
+            $this->writeLine("👉 {$tool->usage()}", self::GREY);
         }
-        if (in_array(Tool::TextToImage, $tools, true)) {
-            $this->writeLine('👉 Generate an image: vendor/bin/text-to-image <model> "<prompt>"', self::GREY);
-        } elseif (!$storage->isInstalled(Tool::TextToImage)) {
-            $this->writeLine('💡 Want to generate images too? Run: vendor/bin/setup text-to-image (a few hundred MB)', self::GREY);
+        foreach (Tool::cases() as $tool) {
+            if ($tool->purpose() !== null && !in_array($tool, $tools, true) && !$storage->isInstalled($tool)) {
+                $this->writeLine("💡 Want to {$tool->purpose()} too? Run: {$tool->setupCommand()} (a few hundred MB)", self::GREY);
+            }
         }
 
         return $exitCode;

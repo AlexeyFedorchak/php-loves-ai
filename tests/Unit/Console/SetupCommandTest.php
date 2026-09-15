@@ -57,7 +57,8 @@ final class SetupCommandTest extends TestCase
             . "✅ The puller is installed at {$this->storage->binaryPath(Tool::Puller)}\n"
             . "🎉 All set! Happy hacking 🍪\n"
             . "👉 Pull a model: vendor/bin/pull <model>\n"
-            . "💡 Want to generate images too? Run: vendor/bin/setup text-to-image (a few hundred MB)\n",
+            . "💡 Want to generate images too? Run: vendor/bin/setup text-to-image (a few hundred MB)\n"
+            . "💡 Want to generate text too? Run: vendor/bin/setup text-to-text (a few hundred MB)\n",
             $this->contents($this->stdout),
         );
         self::assertSame('', $this->contents($this->stderr));
@@ -67,11 +68,16 @@ final class SetupCommandTest extends TestCase
     {
         $this->release->publish(Tool::Puller);
         $this->release->publish(Tool::TextToImage);
+        $this->release->publish(Tool::TextToText);
 
-        self::assertSame(SetupCommand::EXIT_OK, $this->runCommand(['puller', 'text-to-image']));
+        self::assertSame(SetupCommand::EXIT_OK, $this->runCommand(['puller', 'text-to-image', 'text-to-text']));
 
         self::assertTrue($this->storage->isInstalled(Tool::Puller));
         self::assertTrue($this->storage->isInstalled(Tool::TextToImage));
+        self::assertTrue($this->storage->isInstalled(Tool::TextToText));
+        self::assertStringContainsString("✅ The text-to-text runner is installed at {$this->storage->binaryPath(Tool::TextToText)}", $this->contents($this->stdout));
+        self::assertStringContainsString('👉 Generate text: vendor/bin/text-to-text <model> "<prompt>"', $this->contents($this->stdout));
+        self::assertStringNotContainsString('💡 Want to', $this->contents($this->stdout));
         self::assertStringContainsString("✅ The text-to-image runner is installed at {$this->storage->binaryPath(Tool::TextToImage)}", $this->contents($this->stdout));
         self::assertStringContainsString('👉 Generate an image: vendor/bin/text-to-image <model> "<prompt>"', $this->contents($this->stdout));
     }
@@ -104,7 +110,7 @@ final class SetupCommandTest extends TestCase
     public function testRejectsUnknownBinary(): void
     {
         self::assertSame(SetupCommand::EXIT_USAGE, $this->runCommand(['image-to-text']));
-        self::assertStringContainsString("Error: Unknown binary 'image-to-text'. Available: puller, text-to-image.", $this->contents($this->stderr));
+        self::assertStringContainsString("Error: Unknown binary 'image-to-text'. Available: puller, text-to-image, text-to-text.", $this->contents($this->stderr));
     }
 
     public function testReportsFailedDownload(): void

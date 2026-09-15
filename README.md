@@ -7,9 +7,9 @@ Run small Hugging Face AI models locally from PHP — no Python installation req
 The Composer package itself is tiny and contains only PHP code. The heavy parts live outside of it:
 
 1. **Puller binary** — a Python script compiled with PyInstaller that pulls models from Hugging Face and saves them locally.
-2. **Runner binaries** — one per task (e.g. text-to-image), each compiled with PyInstaller. A runner loads a locally
-   saved model and runs it; within a task one runner serves many models (diffusers picks the right pipeline from
-   the model's own config), while tasks get separate binaries because their dependencies differ.
+2. **Runner binaries** — one per task (text-to-image, text-to-text), each compiled with PyInstaller. A runner loads a
+   locally saved model and runs it; within a task one runner serves many models (diffusers and transformers pick the
+   right architecture from the model's own config), while tasks get separate binaries because their dependencies differ.
 3. The binaries are built per platform by GitHub Actions and attached to each GitHub release.
    `vendor/bin/setup` downloads the ones matching the current OS; the other commands find them automatically.
 4. The user chooses which models to pull; weights are never shipped through Composer.
@@ -30,6 +30,7 @@ Supported platforms: macOS arm64, Linux x86_64, Linux arm64, Windows x86_64.
 composer require php-loves-ai/php-loves-ai
 vendor/bin/setup                  # downloads the puller (~17 MB) and asks for your Hugging Face API key
 vendor/bin/setup text-to-image    # optional: the image generation runner (a few hundred MB)
+vendor/bin/setup text-to-text     # optional: the text generation runner (a few hundred MB)
 ```
 
 ```
@@ -206,6 +207,69 @@ Throws `BinaryNotInstalledException` when `setup text-to-image` has not been run
 model was not pulled yet, `UnsupportedModelException` when the pulled model is not a complete Diffusers text-to-image
 model, and `RunFailedException` (with the runner's error output) when generation fails.
 
+## Generating text
+
+Pull a [transformers text generation model](https://huggingface.co/models?pipeline_tag=text-generation&library=transformers)
+first. Both kinds of text models work:
+
+- **Chat and completion models** (task `text-generation`), e.g. `Qwen/Qwen2.5-0.5B-Instruct` or
+  `HuggingFaceTB/SmolLM2-360M-Instruct`. Chat models get the prompt wrapped in their chat template, so they answer it;
+  other models continue it.
+- **Encoder-decoder models** (task `text2text-generation`), e.g. `google/flan-t5-base`.
+
+The runner rejects models it cannot load before starting, with an explanation: GGUF files (made for llama.cpp and
+Ollama), ONNX-only repositories, LoRA adapters, image models, and models that need their own Python code
+(`trust_remote_code`), which it never runs.
+
+### From the command line
+
+```bash
+vendor/bin/pull Qwen/Qwen2.5-0.5B-Instruct
+vendor/bin/text-to-text Qwen/Qwen2.5-0.5B-Instruct "Write a haiku about PHP." --system="You are a poet."
+```
+
+```
+✍️ Writing with Qwen/Qwen2.5-0.5B-Instruct… Good words take a moment — perfect time for a cup of tea and a cookie 🍪
+If you wish to see all logs, re-run the command with the "--debug" option.
+🎉 Qwen/Qwen2.5-0.5B-Instruct wrote:
+<the generated haiku>
+```
+
+| Option                 | Meaning                                                                  |
+|------------------------|--------------------------------------------------------------------------|
+| `--system=TEXT`        | Instructions for chat models, e.g. `"You are a helpful assistant."`      |
+| `--max-new-tokens=N`   | Maximum length of the answer in tokens (default: 256)                    |
+| `--temperature=T`      | Randomness: `0` always picks the likeliest words (default: the model's own) |
+| `--top-p=P`            | Nucleus sampling probability, e.g. `0.9` (default: the model's own)      |
+| `--seed=N`             | Random seed, for reproducible text                                       |
+| `--device=DEVICE`      | `cpu`, `cuda`, `mps`… (default: the best available)                      |
+| `--log-file=PATH`      | Append the runner's output to this file                                  |
+| `--debug`              | Show the runner's output, and the text as it is written                  |
+
+Defaults come from `config/text-to-text.php` (`log_file`).
+
+### From PHP
+
+```php
+use PhpLovesAi\Runner\TextToText;
+
+// Finds the runner and the pulled model in the project's .local directory by itself.
+$answer = (new TextToText())->generate(
+    model: 'Qwen/Qwen2.5-0.5B-Instruct',
+    prompt: 'Summarize in one sentence: PHP is a popular general-purpose scripting language...',
+    systemPrompt: 'You are a concise assistant.',
+    maxNewTokens: 100,
+    temperature: 0.0,
+);
+```
+
+Throws `BinaryNotInstalledException` when `setup text-to-text` has not been run, `ModelNotFoundException` when the
+model was not pulled yet, `UnsupportedModelException` when the model is not a transformers text model, and
+`RunFailedException` (with the runner's error output) when generation fails.
+
+Small models run on CPU, but larger ones get slow quickly: a 0.5B model writes a few words per second on a laptop CPU,
+and each run loads the model from disk again. Run generation in a queue job rather than in a web request.
+
 ## Releasing binaries
 
 Publishing a GitHub release runs `.github/workflows/release-binaries.yml`, which builds every binary on each supported
@@ -218,6 +282,7 @@ To build and pack locally (PyInstaller does not cross-compile, so this covers th
 ```bash
 python/puller/build.sh                    # → python/puller/dist/puller-<os>-<arch>
 python/runners/text-to-image/build.sh     # → python/runners/text-to-image/dist/text-to-image-<os>-<arch>/
+python/runners/text-to-text/build.sh      # → python/runners/text-to-text/dist/text-to-text-<os>-<arch>/
 python/package.sh                         # → python/release/*.tar.gz + *.sha256
 ```
 
@@ -225,19 +290,20 @@ Linux binaries can be built from any Docker host (including a Mac): `python/buil
 `python/build-in-docker.sh linux/arm64` builds and packs them on an old glibc base, so they run on Debian 11+, Ubuntu
 20.04+ and RHEL 9+. The release workflow uses the same script.
 
-The text-to-image runner bundles torch and diffusers, so it is built as a directory (~700 MB, ~220 MB packed) rather
-than a single file; Linux builds use CPU-only torch to stay within GitHub's release asset size limit.
+The runners bundle torch (plus diffusers or transformers), so they are built as directories (~600–700 MB, ~210–220 MB
+packed) rather than single files; Linux builds use CPU-only torch to stay within GitHub's release asset size limit.
 To test `setup` against local assets, serve `python/release` over HTTP and set `PHP_LOVES_AI_DOWNLOAD_URL` to its URL.
 
 ## Structure
 
 ```
-bin/                 CLI scripts exposed via vendor/bin (setup, pull, text-to-image)
-config/              Package config (pull.php, text-to-image.php)
+bin/                 CLI scripts exposed via vendor/bin (setup, pull, text-to-image, text-to-text)
+config/              Package config (pull.php, text-to-image.php, text-to-text.php)
 python/              Python sources compiled into standalone binaries (not shipped via Composer)
   puller/            Pulls models from Hugging Face and saves them locally
   runners/           One runner per task, running locally saved models
     text-to-image/   Generates images with diffusers models
+    text-to-text/    Generates text with transformers models
 src/
   Enum/              Model registry
   Binary/            Platform detection and installing (Installer) the prebuilt binaries
@@ -246,7 +312,7 @@ src/
   Filesystem/        LocalStorage (the fixed paths inside .local) and path helpers
   HuggingFace/       Credentials: the optional API key saved in .local/huggingface/credentials.json
   Process/           PHP wrapper that invokes the puller binary (ModelPuller)
-  Runner/            One class per task running pulled models (TextToImage), sharing the Runner interface
+  Runner/            One class per task running pulled models (TextToImage, TextToText), sharing the Runner interface
   Exception/         Package exceptions
 tests/
   Unit/

@@ -34,3 +34,4 @@ puller="puller-${platform}"
 
 pack puller puller/dist "$puller"
 pack text-to-image runners/text-to-image/dist "text-to-image-${platform}"
+pack text-to-text runners/text-to-text/dist "text-to-text-${platform}"
