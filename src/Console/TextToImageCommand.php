@@ -4,12 +4,11 @@ declare(strict_types=1);
 
 namespace PhpLovesAi\Console;
 
-use PhpLovesAi\Binary\BinaryStore;
 use PhpLovesAi\Config\TextToImageConfig;
-use PhpLovesAi\Exception\BinaryNotFoundException;
 use PhpLovesAi\Exception\ModelNotFoundException;
 use PhpLovesAi\Exception\PhpLovesAiException;
 use PhpLovesAi\Exception\RunFailedException;
+use PhpLovesAi\Filesystem\LocalStorage;
 use PhpLovesAi\Runner\TextToImage;
 
 /**
@@ -32,20 +31,19 @@ final class TextToImageCommand extends Command
     protected const NAME = 'text-to-image';
 
     protected const OPTIONS = [
-        'dir', 'output', 'negative-prompt', 'steps', 'guidance', 'width', 'height', 'seed', 'device', 'log-file',
+        'output', 'negative-prompt', 'steps', 'guidance', 'width', 'height', 'seed', 'device', 'log-file',
     ];
 
     protected const USAGE = <<<'TXT'
         Usage: text-to-image <model> <prompt> [options]
 
-        Generate an image from a text prompt with a pulled diffusion model.
+        Generate an image from a text prompt with a diffusion model pulled into .local/models in the project root.
 
         Arguments:
           model                   Hugging Face model id, e.g. stabilityai/sd-turbo (pull it first)
           prompt                  Text describing the image; wrap it in quotes
 
         Options:
-          --dir=DIR               Directory the model was pulled into (default: 'models_dir' in config/text-to-image.php)
           --output=PATH           Image file to write (default: a timestamped .png in 'output_dir' in config/text-to-image.php)
           --negative-prompt=TEXT  Text describing what the image should not contain
           --steps=N               Inference steps (default: the model's own)
@@ -70,14 +68,14 @@ final class TextToImageCommand extends Command
      * @param resource|null             $stdout
      * @param resource|null             $stderr
      * @param (\Closure(int): int)|null $pickIntro see Command::__construct()
-     * @param BinaryStore|null          $store     where to find the installed runner; defaults to the project's own
+     * @param LocalStorage|null         $storage   defaults to the project's own
      */
     public function __construct(
         private ?TextToImageConfig $config = null,
         $stdout = null,
         $stderr = null,
         ?\Closure $pickIntro = null,
-        private readonly ?BinaryStore $store = null,
+        private readonly ?LocalStorage $storage = null,
     ) {
         parent::__construct($stdout, $stderr, $pickIntro);
     }
@@ -93,10 +91,7 @@ final class TextToImageCommand extends Command
         [$model, $prompt] = $positional;
         $config = $this->config ??= TextToImageConfig::load();
 
-        $modelsDir = $options['dir'] ?? $config->modelsDir;
-        $runner = $config->binary !== null
-            ? new TextToImage($config->binary, $modelsDir)
-            : TextToImage::installed($modelsDir, store: $this->store);
+        $runner = new TextToImage($this->storage);
         $output = $options['output']
             ?? rtrim($config->outputDir, '/\\') . '/' . date('Ymd-His') . '-' . bin2hex(random_bytes(3)) . '.png';
 
@@ -135,8 +130,7 @@ final class TextToImageCommand extends Command
     protected function hintFor(PhpLovesAiException $e): ?string
     {
         return match (true) {
-            $e instanceof ModelNotFoundException => "Pull it first with: pull {$e->model} (or pass --dir if it was pulled elsewhere).",
-            $e instanceof BinaryNotFoundException => "Check 'binary' in config/text-to-image.php, or set it to null to use the one installed by vendor/bin/setup text-to-image.",
+            $e instanceof ModelNotFoundException => "Pull it first with: vendor/bin/pull {$e->model}",
             default => parent::hintFor($e),
         };
     }

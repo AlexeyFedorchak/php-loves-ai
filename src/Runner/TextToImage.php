@@ -5,14 +5,17 @@ declare(strict_types=1);
 namespace PhpLovesAi\Runner;
 
 use PhpLovesAi\Binary\Tool;
-use PhpLovesAi\Exception\BinaryNotFoundException;
+use PhpLovesAi\Exception\BinaryNotInstalledException;
 use PhpLovesAi\Exception\HomeDirectoryNotFoundException;
 use PhpLovesAi\Exception\ModelNotFoundException;
 use PhpLovesAi\Exception\RunFailedException;
 use PhpLovesAi\Filesystem\Path;
 
 /**
- * Generates images with locally pulled diffusion models through the text-to-image runner binary.
+ * Generates images with diffusion models pulled into the project, through the runner installed by
+ * `vendor/bin/setup text-to-image`.
+ *
+ *     $image = (new TextToImage())->generate('stabilityai/sd-turbo', 'a cozy cat', __DIR__ . '/cat.png');
  *
  * Input is passed to the model as-is: values it cannot handle (e.g. a prompt that is too long) make the run
  * fail with a RunFailedException.
@@ -41,8 +44,8 @@ final class TextToImage extends BinaryRunner
      *
      * @return string absolute path of the generated image
      *
+     * @throws BinaryNotInstalledException
      * @throws ModelNotFoundException
-     * @throws BinaryNotFoundException
      * @throws HomeDirectoryNotFoundException
      * @throws RunFailedException
      */

@@ -4,41 +4,37 @@ declare(strict_types=1);
 
 namespace PhpLovesAi\Tests\Unit\Console;
 
-use PhpLovesAi\Binary\BinaryStore;
+use PhpLovesAi\Binary\Tool;
 use PhpLovesAi\Config\TextToImageConfig;
 use PhpLovesAi\Console\TextToImageCommand;
+use PhpLovesAi\Filesystem\LocalStorage;
+use PhpLovesAi\Tests\Support\FakeProject;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 final class TextToImageCommandTest extends TestCase
 {
-    private const FAKE_RUNNER = __DIR__ . '/../../Fixtures/fake-text-to-image';
-
     /** @var resource */
     private $stdout;
 
     /** @var resource */
     private $stderr;
 
-    private string $tempDir;
+    private FakeProject $project;
 
     protected function setUp(): void
     {
         $this->stdout = self::memoryStream();
         $this->stderr = self::memoryStream();
 
-        $this->tempDir = sys_get_temp_dir() . '/text-to-image-command-test-' . bin2hex(random_bytes(4));
-        mkdir("{$this->tempDir}/models/org/model", 0777, true);
+        $this->project = (new FakeProject())
+            ->install(Tool::TextToImage, FakeProject::FAKE_TEXT_TO_IMAGE)
+            ->addModel('org/model');
     }
 
     protected function tearDown(): void
     {
-        foreach (["{$this->tempDir}/run.log"] as $file) {
-            is_file($file) && unlink($file);
-        }
-        foreach (["{$this->tempDir}/models/org/model", "{$this->tempDir}/models/org", "{$this->tempDir}/models", $this->tempDir] as $dir) {
-            rmdir($dir);
-        }
+        $this->project->remove();
     }
 
     public function testGeneratesImageIntoConfiguredOutputDir(): void
@@ -64,7 +60,7 @@ final class TextToImageCommandTest extends TestCase
 
         self::assertSame(TextToImageCommand::EXIT_OK, $exitCode);
         self::assertStringContainsString(
-            "args: --model {$this->tempDir}/models/org/model --prompt a cozy cat --output /tmp/cat.png "
+            "args: --model {$this->project->root}/.local/models/org/model --prompt a cozy cat --output /tmp/cat.png "
             . '--negative-prompt dogs --steps 4 --guidance 0 --width 512 --height 256 --seed 42 --device cpu',
             $this->contents($this->stderr),
         );
@@ -98,6 +94,7 @@ final class TextToImageCommandTest extends TestCase
         yield 'non-integer steps' => [['org/model', 'a cat', '--steps=many'], 'Option --steps must be an integer.'];
         yield 'non-numeric guidance' => [['org/model', 'a cat', '--guidance=high'], 'Option --guidance must be a number.'];
         yield 'unknown option' => [['org/model', 'a cat', '--revision=main'], 'Unknown option: --revision=main'];
+        yield 'dir is not an option' => [['org/model', 'a cat', '--dir=/models'], 'Unknown option: --dir=/models'];
     }
 
     public function testReportsModelThatWasNotPulled(): void
@@ -105,8 +102,8 @@ final class TextToImageCommandTest extends TestCase
         self::assertSame(TextToImageCommand::EXIT_FAILURE, $this->runCommand(['org/missing', 'a cat']));
 
         self::assertSame(
-            "Error: Model org/missing not found at {$this->tempDir}/models/org/missing.\n"
-            . "Pull it first with: pull org/missing (or pass --dir if it was pulled elsewhere).\n",
+            "Error: Model org/missing not found at {$this->project->root}/.local/models/org/missing.\n"
+            . "Pull it first with: vendor/bin/pull org/missing\n",
             $this->contents($this->stderr),
         );
         self::assertSame('', $this->contents($this->stdout));
@@ -125,7 +122,7 @@ final class TextToImageCommandTest extends TestCase
 
     public function testLogsRunnerOutputToLogFile(): void
     {
-        $log = "{$this->tempDir}/run.log";
+        $log = "{$this->project->root}/run.log";
 
         self::assertSame(TextToImageCommand::EXIT_FAILURE, $this->runCommand(['org/model', 'fail', "--log-file={$log}"]));
 
@@ -135,24 +132,15 @@ final class TextToImageCommandTest extends TestCase
         self::assertStringContainsString('prompt is too long', $contents);
     }
 
-    public function testReportsMissingBinary(): void
-    {
-        $config = new TextToImageConfig('/nonexistent/text-to-image', "{$this->tempDir}/models", '/images');
-
-        self::assertSame(TextToImageCommand::EXIT_FAILURE, $this->runCommand(['org/model', 'a cat'], $config));
-        self::assertStringContainsString(
-            "Check 'binary' in config/text-to-image.php, or set it to null to use the one installed by vendor/bin/setup text-to-image.",
-            $this->contents($this->stderr),
-        );
-    }
-
     public function testRequiresSetupWhenRunnerIsNotInstalled(): void
     {
-        $exitCode = $this->runCommand(
-            ['org/model', 'a cat'],
-            new TextToImageConfig(null, "{$this->tempDir}/models", '/images'),
-            new BinaryStore("{$this->tempDir}/empty-home", 'v1.0.0'),
-        );
+        $emptyProject = (new FakeProject())->addModel('org/model');
+
+        try {
+            $exitCode = $this->runCommand(['org/model', 'a cat'], $emptyProject->storage);
+        } finally {
+            $emptyProject->remove();
+        }
 
         self::assertSame(TextToImageCommand::EXIT_FAILURE, $exitCode);
         self::assertSame(
@@ -164,12 +152,12 @@ final class TextToImageCommandTest extends TestCase
     /**
      * @param list<string> $args
      */
-    private function runCommand(array $args, ?TextToImageConfig $config = null, ?BinaryStore $store = null): int
+    private function runCommand(array $args, ?LocalStorage $storage = null): int
     {
-        $config ??= new TextToImageConfig(self::FAKE_RUNNER, "{$this->tempDir}/models", '/images');
+        $config = new TextToImageConfig('/images');
 
         // Always the first intro, so assertions on the output are stable.
-        return (new TextToImageCommand($config, $this->stdout, $this->stderr, static fn (): int => 0, $store))->run($args);
+        return (new TextToImageCommand($config, $this->stdout, $this->stderr, static fn (): int => 0, $storage ?? $this->project->storage))->run($args);
     }
 
     /**

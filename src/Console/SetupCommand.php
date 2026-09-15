@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace PhpLovesAi\Console;
 
-use PhpLovesAi\Binary\BinaryStore;
 use PhpLovesAi\Binary\Installer;
 use PhpLovesAi\Binary\Platform;
 use PhpLovesAi\Binary\Tool;
@@ -12,8 +11,8 @@ use PhpLovesAi\Exception\InstallFailedException;
 use PhpLovesAi\Exception\PhpLovesAiException;
 
 /**
- * CLI entry point behind `vendor/bin/setup`: downloads the prebuilt binaries for this OS into the BinaryStore,
- * where `pull` and the runners find them automatically.
+ * CLI entry point behind `vendor/bin/setup`: downloads the prebuilt binaries for this OS into the project's
+ * .local/runners directory, where `pull` and the runners find them automatically.
  */
 final class SetupCommand extends Command
 {
@@ -36,8 +35,8 @@ final class SetupCommand extends Command
           --debug            Show where binaries are downloaded from and installed to
           -h, --help         Show this help
 
-        Binaries are installed into .local/share/php-loves-ai in the project root, where every process running
-        the project (CLI, web server, queue worker, other containers sharing it) finds them.
+        Binaries are installed into .local/runners in the project root, where every process running the
+        project (CLI, web server, queue worker, other containers sharing it) finds them.
 
         Environment:
           PHP_LOVES_AI_DOWNLOAD_URL   Base URL to download binaries from (default: this version's GitHub release)
@@ -46,7 +45,7 @@ final class SetupCommand extends Command
         TXT;
 
     /**
-     * @param Installer|null $installer defaults to one installing into the default BinaryStore
+     * @param Installer|null $installer defaults to one installing into the project's .local/runners
      * @param resource|null  $stdout
      * @param resource|null  $stderr
      */
@@ -63,17 +62,17 @@ final class SetupCommand extends Command
         $tools = self::tools($positional);
         $force = isset($options['force']);
 
-        $installer = $this->installer ??= new Installer(new BinaryStore());
-        $store = $installer->store();
+        $installer = $this->installer ??= new Installer();
+        $storage = $installer->storage();
 
-        $this->writeLine(sprintf('🧰 Setting up php-loves-ai (%s) for %s', $store->version(), Platform::current()), self::BOLD_CYAN);
+        $this->writeLine(sprintf('🧰 Setting up php-loves-ai (%s) for %s', $installer->version(), Platform::current()), self::BOLD_CYAN);
         if ($this->debug) {
-            $this->writeLine("   Installing into {$store->versionDir()}", self::GREY);
+            $this->writeLine("   Installing into {$storage->runnersDir()}", self::GREY);
         }
 
         foreach ($tools as $tool) {
-            if (!$force && $store->isInstalled($tool)) {
-                $this->writeLine("✅ The {$tool->label()} is already installed.");
+            if (!$force && $storage->isInstalled($tool)) {
+                $this->writeLine("✅ The {$tool->label()} is already installed at {$storage->binaryPath($tool)}");
                 continue;
             }
 
@@ -88,10 +87,7 @@ final class SetupCommand extends Command
                 $this->writeProgress("{$action} " . self::progress($downloaded, $total));
             });
 
-            $this->finishProgress("✅ The {$tool->label()} is installed.");
-            if ($this->debug) {
-                $this->writeLine("   {$path}", self::GREY);
-            }
+            $this->finishProgress("✅ The {$tool->label()} is installed at {$path}");
         }
 
         $exitCode = $this->succeeded('All set! Happy hacking 🍪');
@@ -101,7 +97,7 @@ final class SetupCommand extends Command
         }
         if (in_array(Tool::TextToImage, $tools, true)) {
             $this->writeLine('👉 Generate an image: vendor/bin/text-to-image <model> "<prompt>"', self::GREY);
-        } elseif (!$store->isInstalled(Tool::TextToImage)) {
+        } elseif (!$storage->isInstalled(Tool::TextToImage)) {
             $this->writeLine('💡 Want to generate images too? Run: vendor/bin/setup text-to-image (a few hundred MB)', self::GREY);
         }
 

@@ -4,11 +4,9 @@ declare(strict_types=1);
 
 namespace PhpLovesAi\Console;
 
-use PhpLovesAi\Binary\BinaryStore;
 use PhpLovesAi\Config\PullConfig;
-use PhpLovesAi\Exception\BinaryNotFoundException;
-use PhpLovesAi\Exception\PhpLovesAiException;
 use PhpLovesAi\Exception\PullFailedException;
+use PhpLovesAi\Filesystem\LocalStorage;
 use PhpLovesAi\Process\ModelPuller;
 
 /**
@@ -31,18 +29,17 @@ final class PullCommand extends Command
 
     protected const NAME = 'pull';
 
-    protected const OPTIONS = ['dir', 'revision', 'log-file'];
+    protected const OPTIONS = ['revision', 'log-file'];
 
     protected const USAGE = <<<'TXT'
         Usage: pull <model> [options]
 
-        Pull a model from the Hugging Face Hub.
+        Pull a model from the Hugging Face Hub into .local/models/<model> in the project root.
 
         Arguments:
           model              Hugging Face model id, e.g. openai-community/gpt2
 
         Options:
-          --dir=DIR          Directory to save models into (default: 'models_dir' in config/pull.php)
           --revision=REV     Branch, tag or commit hash (default: 'revision' in config/pull.php)
           --log-file=PATH    Append the puller's output to this file (default: 'log_file' in config/pull.php)
           --debug            Show the puller's output while pulling
@@ -59,14 +56,14 @@ final class PullCommand extends Command
      * @param resource|null             $stdout
      * @param resource|null             $stderr
      * @param (\Closure(int): int)|null $pickIntro see Command::__construct()
-     * @param BinaryStore|null          $store     where to find the installed puller; defaults to the project's own
+     * @param LocalStorage|null         $storage   defaults to the project's own
      */
     public function __construct(
         private ?PullConfig $config = null,
         $stdout = null,
         $stderr = null,
         ?\Closure $pickIntro = null,
-        private readonly ?BinaryStore $store = null,
+        private readonly ?LocalStorage $storage = null,
     ) {
         parent::__construct($stdout, $stderr, $pickIntro);
     }
@@ -83,10 +80,7 @@ final class PullCommand extends Command
         $config = $this->config ??= PullConfig::load();
         $revision = $options['revision'] ?? $config->revision;
 
-        $modelsDir = $options['dir'] ?? $config->modelsDir;
-        $puller = $config->binary !== null
-            ? new ModelPuller($config->binary, $modelsDir)
-            : ModelPuller::installed($modelsDir, store: $this->store);
+        $puller = new ModelPuller($this->storage);
         $puller->ensureCanPull([$model]);
 
         $this->startLog($options['log-file'] ?? $config->logFile, "pull {$model} (revision {$revision})");
@@ -99,12 +93,5 @@ final class PullCommand extends Command
         }
 
         return $this->succeeded("Pulled {$model} into {$paths[$model]}");
-    }
-
-    protected function hintFor(PhpLovesAiException $e): ?string
-    {
-        return $e instanceof BinaryNotFoundException
-            ? "Check 'binary' in config/pull.php, or set it to null to use the one installed by vendor/bin/setup."
-            : parent::hintFor($e);
     }
 }

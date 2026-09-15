@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace PhpLovesAi\Tests\Unit\Console;
 
-use PhpLovesAi\Binary\BinaryStore;
 use PhpLovesAi\Binary\Installer;
 use PhpLovesAi\Binary\Platform;
 use PhpLovesAi\Binary\Tool;
 use PhpLovesAi\Console\SetupCommand;
+use PhpLovesAi\Filesystem\LocalStorage;
 use PhpLovesAi\Filesystem\Path;
 use PhpLovesAi\Tests\Support\FakeRelease;
 use PHPUnit\Framework\TestCase;
@@ -25,7 +25,7 @@ final class SetupCommandTest extends TestCase
 
     private FakeRelease $release;
 
-    private BinaryStore $store;
+    private LocalStorage $storage;
 
     protected function setUp(): void
     {
@@ -34,7 +34,7 @@ final class SetupCommandTest extends TestCase
 
         $this->tempDir = sys_get_temp_dir() . '/setup-command-test-' . bin2hex(random_bytes(4));
         $this->release = new FakeRelease("{$this->tempDir}/release");
-        $this->store = new BinaryStore("{$this->tempDir}/home", 'v1.0.0');
+        $this->storage = new LocalStorage("{$this->tempDir}/project");
     }
 
     protected function tearDown(): void
@@ -48,11 +48,11 @@ final class SetupCommandTest extends TestCase
 
         self::assertSame(SetupCommand::EXIT_OK, $this->runCommand([]));
 
-        self::assertTrue($this->store->isInstalled(Tool::Puller));
-        self::assertFalse($this->store->isInstalled(Tool::TextToImage));
+        self::assertTrue($this->storage->isInstalled(Tool::Puller));
+        self::assertFalse($this->storage->isInstalled(Tool::TextToImage));
         self::assertSame(
             '🧰 Setting up php-loves-ai (v1.0.0) for ' . Platform::current() . "\n"
-            . "✅ The puller is installed.\n"
+            . "✅ The puller is installed at {$this->storage->binaryPath(Tool::Puller)}\n"
             . "🎉 All set! Happy hacking 🍪\n"
             . "👉 Pull a model: vendor/bin/pull <model>\n"
             . "💡 Want to generate images too? Run: vendor/bin/setup text-to-image (a few hundred MB)\n",
@@ -68,8 +68,9 @@ final class SetupCommandTest extends TestCase
 
         self::assertSame(SetupCommand::EXIT_OK, $this->runCommand(['puller', 'text-to-image']));
 
-        self::assertTrue($this->store->isInstalled(Tool::Puller));
-        self::assertTrue($this->store->isInstalled(Tool::TextToImage));
+        self::assertTrue($this->storage->isInstalled(Tool::Puller));
+        self::assertTrue($this->storage->isInstalled(Tool::TextToImage));
+        self::assertStringContainsString("✅ The text-to-image runner is installed at {$this->storage->binaryPath(Tool::TextToImage)}", $this->contents($this->stdout));
         self::assertStringContainsString('👉 Generate an image: vendor/bin/text-to-image <model> "<prompt>"', $this->contents($this->stdout));
     }
 
@@ -80,11 +81,11 @@ final class SetupCommandTest extends TestCase
 
         $this->stdout = self::memoryStream();
         self::assertSame(SetupCommand::EXIT_OK, $this->runCommand([]));
-        self::assertStringContainsString('✅ The puller is already installed.', $this->contents($this->stdout));
+        self::assertStringContainsString("✅ The puller is already installed at {$this->storage->binaryPath(Tool::Puller)}", $this->contents($this->stdout));
 
         $this->stdout = self::memoryStream();
         self::assertSame(SetupCommand::EXIT_OK, $this->runCommand(['--force']));
-        self::assertStringContainsString('✅ The puller is installed.', $this->contents($this->stdout));
+        self::assertStringContainsString("✅ The puller is installed at {$this->storage->binaryPath(Tool::Puller)}", $this->contents($this->stdout));
     }
 
     public function testDebugShowsWhereBinariesComeFrom(): void
@@ -94,7 +95,7 @@ final class SetupCommandTest extends TestCase
         $this->runCommand(['--debug']);
 
         $stdout = $this->contents($this->stdout);
-        self::assertStringContainsString("Installing into {$this->store->versionDir()}", $stdout);
+        self::assertStringContainsString("Installing into {$this->tempDir}/project/.local/runners", $stdout);
         self::assertStringContainsString("Downloading {$this->release->url()}/" . Tool::Puller->assetName(), $stdout);
     }
 
@@ -110,7 +111,7 @@ final class SetupCommandTest extends TestCase
 
         self::assertStringStartsWith('Error: Download of ' . $this->release->url(), $this->contents($this->stderr));
         self::assertStringContainsString('Check your internet connection and try again.', $this->contents($this->stderr));
-        self::assertFalse($this->store->isInstalled(Tool::TextToImage));
+        self::assertFalse($this->storage->isInstalled(Tool::TextToImage));
     }
 
     /**
@@ -118,7 +119,7 @@ final class SetupCommandTest extends TestCase
      */
     private function runCommand(array $args): int
     {
-        $installer = new Installer($this->store, $this->release->url());
+        $installer = new Installer($this->storage, 'v1.0.0', $this->release->url());
 
         return (new SetupCommand($installer, $this->stdout, $this->stderr))->run($args);
     }

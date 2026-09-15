@@ -4,25 +4,31 @@ declare(strict_types=1);
 
 namespace PhpLovesAi\Tests\Unit\Process;
 
-use PhpLovesAi\Exception\BinaryNotFoundException;
-use PhpLovesAi\Exception\HomeDirectoryNotFoundException;
+use PhpLovesAi\Binary\Tool;
+use PhpLovesAi\Exception\BinaryNotInstalledException;
 use PhpLovesAi\Exception\InvalidModelIdException;
 use PhpLovesAi\Exception\MissingApiKeyException;
 use PhpLovesAi\Exception\PullFailedException;
 use PhpLovesAi\Process\ModelPuller;
+use PhpLovesAi\Tests\Support\FakeProject;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 final class ModelPullerTest extends TestCase
 {
-    private const FAKE_PULLER = __DIR__ . '/../../Fixtures/fake-puller';
-
     private string|false $originalApiKey;
+
+    private FakeProject $project;
+
+    private string $modelsDir;
 
     protected function setUp(): void
     {
         $this->originalApiKey = getenv(ModelPuller::API_KEY_ENV);
         putenv(ModelPuller::API_KEY_ENV . '=test-key');
+
+        $this->project = (new FakeProject())->install(Tool::Puller, FakeProject::FAKE_PULLER);
+        $this->modelsDir = "{$this->project->root}/.local/models";
     }
 
     protected function tearDown(): void
@@ -30,26 +36,28 @@ final class ModelPullerTest extends TestCase
         putenv($this->originalApiKey === false
             ? ModelPuller::API_KEY_ENV
             : ModelPuller::API_KEY_ENV . '=' . $this->originalApiKey);
+
+        $this->project->remove();
     }
 
-    public function testReturnsPathsOfPulledModels(): void
+    public function testPullsIntoProjectModelsDir(): void
     {
-        $puller = new ModelPuller(self::FAKE_PULLER, '/models');
-
         self::assertSame(
             [
-                'openai-community/gpt2' => '/models/openai-community/gpt2',
-                'distilgpt2' => '/models/distilgpt2',
+                'openai-community/gpt2' => "{$this->modelsDir}/openai-community/gpt2",
+                'distilgpt2' => "{$this->modelsDir}/distilgpt2",
             ],
-            $puller->pull(['openai-community/gpt2', 'distilgpt2']),
+            $this->puller()->pull(['openai-community/gpt2', 'distilgpt2']),
         );
+        self::assertDirectoryExists($this->modelsDir);
+        self::assertFileExists("{$this->project->root}/.local/.gitignore");
     }
 
     public function testPassesRevisionAndStreamsProgress(): void
     {
         $progress = '';
 
-        (new ModelPuller(self::FAKE_PULLER, '/models'))->pull(
+        $this->puller()->pull(
             ['openai-community/gpt2'],
             revision: 'v1.0',
             onProgress: static function (string $chunk) use (&$progress): void {
@@ -57,46 +65,19 @@ final class ModelPullerTest extends TestCase
             },
         );
 
-        self::assertStringContainsString('args: --dir /models --revision v1.0 -- openai-community/gpt2', $progress);
+        self::assertStringContainsString("args: --dir {$this->modelsDir} --revision v1.0 -- openai-community/gpt2", $progress);
     }
 
     public function testFailureKeepsModelsPulledBeforeIt(): void
     {
         try {
-            (new ModelPuller(self::FAKE_PULLER, '/models'))->pull(['good/model', 'broken/model']);
+            $this->puller()->pull(['good/model', 'broken/model']);
             self::fail('Expected PullFailedException.');
         } catch (PullFailedException $e) {
             self::assertSame(1, $e->exitCode);
-            self::assertSame(['good/model' => '/models/good/model'], $e->pulled);
+            self::assertSame(['good/model' => "{$this->modelsDir}/good/model"], $e->pulled);
             self::assertStringContainsString('failed to pull broken/model', $e->getMessage());
         }
-    }
-
-    public function testExpandsHomeDirectoryInModelsDir(): void
-    {
-        $this->withHome('/home/tester', function (): void {
-            self::assertSame(
-                ['org/model' => '/home/tester/tmp/models/org/model'],
-                (new ModelPuller(self::FAKE_PULLER, '~/tmp/models'))->pull(['org/model']),
-            );
-        });
-    }
-
-    public function testKeepsTildeOutsideLeadingPosition(): void
-    {
-        self::assertSame(
-            ['org/model' => '/data/~models/org/model'],
-            (new ModelPuller(self::FAKE_PULLER, '/data/~models'))->pull(['org/model']),
-        );
-    }
-
-    public function testFailsWhenHomeDirectoryIsUnknown(): void
-    {
-        $this->withHome(null, function (): void {
-            $this->expectException(HomeDirectoryNotFoundException::class);
-
-            new ModelPuller(self::FAKE_PULLER, '~/tmp/models');
-        });
     }
 
     public function testRequiresApiKey(): void
@@ -105,14 +86,21 @@ final class ModelPullerTest extends TestCase
 
         $this->expectException(MissingApiKeyException::class);
 
-        (new ModelPuller(self::FAKE_PULLER, '/models'))->pull(['openai-community/gpt2']);
+        $this->puller()->pull(['openai-community/gpt2']);
     }
 
-    public function testRequiresExistingBinary(): void
+    public function testRequiresInstalledPuller(): void
     {
-        $this->expectException(BinaryNotFoundException::class);
+        $project = new FakeProject();
 
-        (new ModelPuller('/nonexistent/puller', '/models'))->pull(['openai-community/gpt2']);
+        try {
+            (new ModelPuller($project->storage))->pull(['openai-community/gpt2']);
+            self::fail('Expected BinaryNotInstalledException.');
+        } catch (BinaryNotInstalledException $e) {
+            self::assertSame(Tool::Puller, $e->tool);
+        } finally {
+            $project->remove();
+        }
     }
 
     #[DataProvider('invalidModelIds')]
@@ -120,7 +108,7 @@ final class ModelPullerTest extends TestCase
     {
         $this->expectException(InvalidModelIdException::class);
 
-        (new ModelPuller(self::FAKE_PULLER, '/models'))->pull([$model]);
+        $this->puller()->pull([$model]);
     }
 
     /**
@@ -134,22 +122,8 @@ final class ModelPullerTest extends TestCase
         yield 'empty' => [''];
     }
 
-    /**
-     * Runs $test with HOME set to $home (unset when null) and USERPROFILE unset, restoring both afterwards.
-     */
-    private function withHome(?string $home, \Closure $test): void
+    private function puller(): ModelPuller
     {
-        $original = ['HOME' => getenv('HOME'), 'USERPROFILE' => getenv('USERPROFILE')];
-
-        putenv($home === null ? 'HOME' : "HOME={$home}");
-        putenv('USERPROFILE');
-
-        try {
-            $test();
-        } finally {
-            foreach ($original as $name => $value) {
-                putenv($value === false ? $name : "{$name}={$value}");
-            }
-        }
+        return new ModelPuller($this->project->storage);
     }
 }

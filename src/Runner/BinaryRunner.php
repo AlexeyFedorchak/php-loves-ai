@@ -4,13 +4,10 @@ declare(strict_types=1);
 
 namespace PhpLovesAi\Runner;
 
-use PhpLovesAi\Binary\BinaryStore;
-use PhpLovesAi\Exception\BinaryNotFoundException;
 use PhpLovesAi\Exception\BinaryNotInstalledException;
-use PhpLovesAi\Exception\HomeDirectoryNotFoundException;
 use PhpLovesAi\Exception\ModelNotFoundException;
 use PhpLovesAi\Exception\RunFailedException;
-use PhpLovesAi\Filesystem\Path;
+use PhpLovesAi\Filesystem\LocalStorage;
 use Symfony\Component\Process\Process;
 
 /**
@@ -21,52 +18,31 @@ use Symfony\Component\Process\Process;
  */
 abstract class BinaryRunner implements Runner
 {
-    private readonly string $modelsDir;
+    private readonly LocalStorage $storage;
 
     /**
-     * @param string     $binaryPath path to the compiled runner binary
-     * @param string     $modelsDir  directory models were pulled into; a model is loaded from <modelsDir>/<model id>.
-     *                               A leading "~" is expanded to the user's home directory
-     * @param float|null $timeout    seconds before a run is aborted; null waits indefinitely
-     *
-     * @throws HomeDirectoryNotFoundException
+     * @param LocalStorage|null $storage defaults to the project's own
+     * @param float|null        $timeout seconds before a run is aborted; null waits indefinitely
      */
-    final public function __construct(
-        private readonly string $binaryPath,
-        string $modelsDir,
-        private readonly ?float $timeout = null,
-    ) {
-        $this->modelsDir = Path::expandHome($modelsDir);
-    }
-
-    /**
-     * @throws BinaryNotInstalledException
-     * @throws HomeDirectoryNotFoundException
-     */
-    public static function installed(string $modelsDir, ?float $timeout = null, ?BinaryStore $store = null): static
+    public function __construct(?LocalStorage $storage = null, private readonly ?float $timeout = null)
     {
-        $store ??= new BinaryStore();
-        if (!$store->isInstalled(static::tool())) {
-            throw new BinaryNotInstalledException(static::tool());
-        }
-
-        return new static($store->path(static::tool()), $modelsDir, $timeout);
+        $this->storage = $storage ?? new LocalStorage();
     }
 
     public function modelPath(string $model): string
     {
-        return rtrim($this->modelsDir, '/\\') . '/' . $model;
+        return $this->storage->modelPath($model);
     }
 
     public function ensureCanRun(string $model): void
     {
+        if (!$this->storage->isInstalled(static::tool())) {
+            throw new BinaryNotInstalledException(static::tool());
+        }
+
         $modelPath = $this->modelPath($model);
         if (!is_dir($modelPath)) {
             throw new ModelNotFoundException($model, $modelPath);
-        }
-
-        if (!is_file($this->binaryPath) || !is_executable($this->binaryPath)) {
-            throw BinaryNotFoundException::atPath($this->binaryPath);
         }
     }
 
@@ -79,15 +55,15 @@ abstract class BinaryRunner implements Runner
      *
      * @return array<mixed>
      *
+     * @throws BinaryNotInstalledException
      * @throws ModelNotFoundException
-     * @throws BinaryNotFoundException
      * @throws RunFailedException
      */
     protected function run(string $model, array $options, ?callable $onOutput = null): array
     {
         $this->ensureCanRun($model);
 
-        $command = [$this->binaryPath, '--model', $this->modelPath($model)];
+        $command = [$this->storage->binaryPath(static::tool()), '--model', $this->modelPath($model)];
         foreach ($options as $name => $value) {
             if ($value !== null) {
                 array_push($command, $name, (string) $value);

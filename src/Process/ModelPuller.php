@@ -4,19 +4,17 @@ declare(strict_types=1);
 
 namespace PhpLovesAi\Process;
 
-use PhpLovesAi\Binary\BinaryStore;
 use PhpLovesAi\Binary\Tool;
-use PhpLovesAi\Exception\BinaryNotFoundException;
 use PhpLovesAi\Exception\BinaryNotInstalledException;
-use PhpLovesAi\Exception\HomeDirectoryNotFoundException;
 use PhpLovesAi\Exception\InvalidModelIdException;
 use PhpLovesAi\Exception\MissingApiKeyException;
 use PhpLovesAi\Exception\PullFailedException;
-use PhpLovesAi\Filesystem\Path;
+use PhpLovesAi\Filesystem\LocalStorage;
 use Symfony\Component\Process\Process;
 
 /**
- * Runs the compiled puller binary to download models from the Hugging Face Hub.
+ * Runs the puller installed by `vendor/bin/setup` to download models from the Hugging Face Hub into the project's
+ * models directory, <project root>/.local/models/<model id>, where the runners find them.
  */
 final class ModelPuller
 {
@@ -28,40 +26,15 @@ final class ModelPuller
     /** Must stay in sync with EXIT_MISSING_API_KEY in python/puller/puller.py. */
     private const EXIT_MISSING_API_KEY = 3;
 
-    private readonly string $modelsDir;
+    private readonly LocalStorage $storage;
 
     /**
-     * @param string     $binaryPath path to the compiled puller binary
-     * @param string     $modelsDir  directory models are saved into, as <modelsDir>/<model id>;
-     *                               a leading "~" is expanded to the user's home directory
-     * @param float|null $timeout    seconds before the pull is aborted; null waits indefinitely
-     *
-     * @throws HomeDirectoryNotFoundException
+     * @param LocalStorage|null $storage defaults to the project's own
+     * @param float|null        $timeout seconds before the pull is aborted; null waits indefinitely
      */
-    public function __construct(
-        private readonly string $binaryPath,
-        string $modelsDir,
-        private readonly ?float $timeout = null,
-    ) {
-        $this->modelsDir = Path::expandHome($modelsDir);
-    }
-
-    /**
-     * A puller using the binary installed by `vendor/bin/setup`.
-     *
-     * @param BinaryStore|null $store defaults to the standard install location
-     *
-     * @throws BinaryNotInstalledException
-     * @throws HomeDirectoryNotFoundException
-     */
-    public static function installed(string $modelsDir, ?float $timeout = null, ?BinaryStore $store = null): self
+    public function __construct(?LocalStorage $storage = null, private readonly ?float $timeout = null)
     {
-        $store ??= new BinaryStore();
-        if (!$store->isInstalled(Tool::Puller)) {
-            throw new BinaryNotInstalledException(Tool::Puller);
-        }
-
-        return new self($store->path(Tool::Puller), $modelsDir, $timeout);
+        $this->storage = $storage ?? new LocalStorage();
     }
 
     /**
@@ -73,7 +46,7 @@ final class ModelPuller
      *
      * @throws InvalidModelIdException
      * @throws MissingApiKeyException
-     * @throws BinaryNotFoundException
+     * @throws BinaryNotInstalledException
      * @throws PullFailedException when at least one model could not be pulled
      */
     public function pull(array $models, ?string $revision = null, ?callable $onProgress = null): array
@@ -84,7 +57,10 @@ final class ModelPuller
 
         $this->ensureCanPull($models);
 
-        $command = [$this->binaryPath, '--dir', $this->modelsDir];
+        $modelsDir = $this->storage->modelsDir();
+        $this->storage->ensureDirectory($modelsDir);
+
+        $command = [$this->storage->binaryPath(Tool::Puller), '--dir', $modelsDir];
         if ($revision !== null) {
             array_push($command, '--revision', $revision);
         }
@@ -119,7 +95,7 @@ final class ModelPuller
      *
      * @throws InvalidModelIdException
      * @throws MissingApiKeyException
-     * @throws BinaryNotFoundException
+     * @throws BinaryNotInstalledException
      */
     public function ensureCanPull(array $models): void
     {
@@ -133,8 +109,8 @@ final class ModelPuller
             throw MissingApiKeyException::forVariable(self::API_KEY_ENV);
         }
 
-        if (!is_file($this->binaryPath) || !is_executable($this->binaryPath)) {
-            throw BinaryNotFoundException::atPath($this->binaryPath);
+        if (!$this->storage->isInstalled(Tool::Puller)) {
+            throw new BinaryNotInstalledException(Tool::Puller);
         }
     }
 

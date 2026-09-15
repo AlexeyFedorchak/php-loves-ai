@@ -4,17 +4,17 @@ declare(strict_types=1);
 
 namespace PhpLovesAi\Tests\Unit\Console;
 
-use PhpLovesAi\Binary\BinaryStore;
+use PhpLovesAi\Binary\Tool;
 use PhpLovesAi\Config\PullConfig;
 use PhpLovesAi\Console\PullCommand;
+use PhpLovesAi\Filesystem\LocalStorage;
 use PhpLovesAi\Process\ModelPuller;
+use PhpLovesAi\Tests\Support\FakeProject;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 final class PullCommandTest extends TestCase
 {
-    private const FAKE_PULLER = __DIR__ . '/../../Fixtures/fake-puller';
-
     private string|false $originalApiKey;
 
     /** @var resource */
@@ -25,6 +25,10 @@ final class PullCommandTest extends TestCase
 
     private string $logDir;
 
+    private FakeProject $project;
+
+    private string $modelsDir;
+
     protected function setUp(): void
     {
         $this->originalApiKey = getenv(ModelPuller::API_KEY_ENV);
@@ -33,6 +37,8 @@ final class PullCommandTest extends TestCase
         $this->stdout = self::memoryStream();
         $this->stderr = self::memoryStream();
         $this->logDir = sys_get_temp_dir() . '/pull-command-test-' . bin2hex(random_bytes(4));
+        $this->project = (new FakeProject())->install(Tool::Puller, FakeProject::FAKE_PULLER);
+        $this->modelsDir = "{$this->project->root}/.local/models";
     }
 
     protected function tearDown(): void
@@ -47,15 +53,16 @@ final class PullCommandTest extends TestCase
         foreach (["{$this->logDir}/nested", $this->logDir] as $dir) {
             is_dir($dir) && rmdir($dir);
         }
+        $this->project->remove();
     }
 
-    public function testPullsModelUsingConfigWithoutShowingPullerOutput(): void
+    public function testPullsModelIntoProjectWithoutShowingPullerOutput(): void
     {
         self::assertSame(PullCommand::EXIT_OK, $this->runCommand(['openai-community/gpt2']));
         self::assertSame(
             "☕ Pulling openai-community/gpt2… Big downloads take a moment — perfect time for a cup of tea and some cookies 🍪\n"
             . "If you wish to see all logs, re-run the command with the \"--debug\" option.\n"
-            . "🎉 Pulled openai-community/gpt2 into /models/openai-community/gpt2\n",
+            . "🎉 Pulled openai-community/gpt2 into {$this->modelsDir}/openai-community/gpt2\n",
             $this->contents($this->stdout),
         );
         self::assertSame('', $this->contents($this->stderr));
@@ -67,7 +74,7 @@ final class PullCommandTest extends TestCase
     #[DataProvider('intros')]
     public function testShowsPickedIntro(int $index, array $intro): void
     {
-        $command = new PullCommand($this->fakeConfig(), $this->stdout, $this->stderr, static fn (): int => $index);
+        $command = new PullCommand($this->fakeConfig(), $this->stdout, $this->stderr, static fn (): int => $index, $this->project->storage);
 
         self::assertSame(PullCommand::EXIT_OK, $command->run(['openai-community/gpt2']));
         self::assertStringStartsWith(
@@ -88,7 +95,7 @@ final class PullCommandTest extends TestCase
 
     public function testPicksRandomIntroByDefault(): void
     {
-        self::assertSame(PullCommand::EXIT_OK, (new PullCommand($this->fakeConfig(), $this->stdout, $this->stderr))->run(['org/model']));
+        self::assertSame(PullCommand::EXIT_OK, (new PullCommand($this->fakeConfig(), $this->stdout, $this->stderr, storage: $this->project->storage))->run(['org/model']));
 
         $firstLine = strtok($this->contents($this->stdout), "\n");
         $expected = array_map(
@@ -105,33 +112,33 @@ final class PullCommandTest extends TestCase
         $stdout = $this->contents($this->stdout);
         self::assertStringContainsString('☕ Pulling openai-community/gpt2…', $stdout);
         self::assertStringNotContainsString('--debug', $stdout);
-        self::assertStringContainsString('args: --dir /models --revision main -- openai-community/gpt2', $this->contents($this->stderr));
+        self::assertStringContainsString("args: --dir {$this->modelsDir} --revision main -- openai-community/gpt2", $this->contents($this->stderr));
     }
 
     public function testOptionsOverrideConfig(): void
     {
         $log = "{$this->logDir}/nested/pull.log";
 
-        $exitCode = $this->runCommand(['--dir', '/other', '--revision=v1.0', '--log-file', $log, 'openai-community/gpt2']);
+        $exitCode = $this->runCommand(['--revision=v1.0', '--log-file', $log, 'openai-community/gpt2']);
 
         self::assertSame(PullCommand::EXIT_OK, $exitCode);
         self::assertSame('', $this->contents($this->stderr));
-        self::assertStringContainsString('args: --dir /other --revision v1.0 -- openai-community/gpt2', (string) file_get_contents($log));
+        self::assertStringContainsString("args: --dir {$this->modelsDir} --revision v1.0 -- openai-community/gpt2", (string) file_get_contents($log));
     }
 
     public function testAppendsPullerOutputAndOutcomeToConfiguredLogFile(): void
     {
         $log = "{$this->logDir}/pull.log";
-        $config = new PullConfig(self::FAKE_PULLER, '/models', 'main', $log);
+        $config = new PullConfig('main', $log);
 
         $this->runCommand(['org/first'], $config);
         $this->runCommand(['org/second'], $config);
 
         $contents = (string) file_get_contents($log);
         self::assertMatchesRegularExpression('/^\[\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} [+-]\d{2}:\d{2}\] pull org\/first \(revision main\)$/m', $contents);
-        self::assertStringContainsString('args: --dir /models --revision main -- org/first', $contents);
-        self::assertStringContainsString('Pulled org/first into /models/org/first', $contents);
-        self::assertStringContainsString('Pulled org/second into /models/org/second', $contents);
+        self::assertStringContainsString("args: --dir {$this->modelsDir} --revision main -- org/first", $contents);
+        self::assertStringContainsString("Pulled org/first into {$this->modelsDir}/org/first", $contents);
+        self::assertStringContainsString("Pulled org/second into {$this->modelsDir}/org/second", $contents);
     }
 
     public function testShowsHelp(): void
@@ -158,9 +165,10 @@ final class PullCommandTest extends TestCase
         yield 'no model' => [[], 'Missing model argument.'];
         yield 'two models' => [['org/a', 'org/b'], 'Only one model can be pulled at a time.'];
         yield 'binary is not an option' => [['org/a', '--binary=/bin/sh'], 'Unknown option: --binary=/bin/sh'];
+        yield 'dir is not an option' => [['org/a', '--dir=/models'], 'Unknown option: --dir=/models'];
         yield 'short option' => [['org/a', '-f'], 'Unknown option: -f'];
         yield 'option without value' => [['org/a', '--log-file'], 'Option --log-file requires a value.'];
-        yield 'option followed by option' => [['org/a', '--dir', '--revision=main'], 'Option --dir requires a value.'];
+        yield 'option followed by option' => [['org/a', '--log-file', '--revision=main'], 'Option --log-file requires a value.'];
         yield 'flag with value' => [['org/a', '--debug=1'], 'Option --debug does not take a value.'];
         yield 'invalid model id' => [['../etc'], "Invalid Hugging Face model id: '../etc'"];
     }
@@ -206,22 +214,15 @@ final class PullCommandTest extends TestCase
         self::assertStringContainsString('Cannot write log file: /nonexistent-root-dir/pull.log', $this->contents($this->stderr));
     }
 
-    public function testReportsMissingBinary(): void
-    {
-        $config = new PullConfig('/nonexistent/puller', '/models', 'main');
-
-        self::assertSame(PullCommand::EXIT_FAILURE, $this->runCommand(['org/a'], $config));
-        self::assertStringContainsString('Binary not found or not executable: /nonexistent/puller', $this->contents($this->stderr));
-        self::assertSame('', $this->contents($this->stdout), 'No intro is shown when the pull cannot start.');
-    }
-
     public function testRequiresSetupWhenPullerIsNotInstalled(): void
     {
-        $exitCode = $this->runCommand(
-            ['org/a'],
-            new PullConfig(null, '/models', 'main'),
-            new BinaryStore("{$this->logDir}/empty-home", 'v1.0.0'),
-        );
+        $emptyProject = new FakeProject();
+
+        try {
+            $exitCode = $this->runCommand(['org/a'], storage: $emptyProject->storage);
+        } finally {
+            $emptyProject->remove();
+        }
 
         self::assertSame(PullCommand::EXIT_FAILURE, $exitCode);
         self::assertSame(
@@ -243,17 +244,17 @@ final class PullCommandTest extends TestCase
     /**
      * @param list<string> $args
      */
-    private function runCommand(array $args, ?PullConfig $config = null, ?BinaryStore $store = null): int
+    private function runCommand(array $args, ?PullConfig $config = null, ?LocalStorage $storage = null): int
     {
         // Always the first intro, so assertions on the output are stable.
-        $command = new PullCommand($config ?? $this->fakeConfig(), $this->stdout, $this->stderr, static fn (): int => 0, $store);
+        $command = new PullCommand($config ?? $this->fakeConfig(), $this->stdout, $this->stderr, static fn (): int => 0, $storage ?? $this->project->storage);
 
         return $command->run($args);
     }
 
     private function fakeConfig(): PullConfig
     {
-        return new PullConfig(self::FAKE_PULLER, '/models', 'main');
+        return new PullConfig('main');
     }
 
     /**

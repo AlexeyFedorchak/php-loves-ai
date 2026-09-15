@@ -4,13 +4,15 @@ declare(strict_types=1);
 
 namespace PhpLovesAi\Binary;
 
+use Composer\InstalledVersions;
 use PhpLovesAi\Exception\InstallFailedException;
+use PhpLovesAi\Filesystem\LocalStorage;
 use PhpLovesAi\Filesystem\Path;
 use Symfony\Component\Process\Process;
 
 /**
  * Downloads a binary's release asset for the current platform, verifies its SHA-256 checksum and unpacks it into
- * the BinaryStore.
+ * the project's runners directory (see LocalStorage).
  *
  * Every asset "<tool>-<os>-<arch>.tar.gz" is published next to "<asset>.sha256".
  */
@@ -21,21 +23,40 @@ final class Installer
 
     public const REPOSITORY = 'AlexeyFedorchak/php-loves-ai';
 
+    public const PACKAGE = 'php-loves-ai/php-loves-ai';
+
+    /** Version used for development installs, which download from the latest release. */
+    public const LATEST = 'latest';
+
     private const CHUNK_SIZE = 1 << 20;
 
+    private readonly LocalStorage $storage;
+
+    private readonly string $version;
+
     /**
-     * @param string|null $downloadUrl base URL of the assets; defaults to PHP_LOVES_AI_DOWNLOAD_URL, else the GitHub
-     *                                 release matching the store's version
+     * @param LocalStorage|null $storage     defaults to the project's own
+     * @param string|null       $version     release to download from; defaults to the installed version of this package
+     * @param string|null       $downloadUrl base URL of the assets; defaults to PHP_LOVES_AI_DOWNLOAD_URL, else the
+     *                                       GitHub release matching $version
      */
     public function __construct(
-        private readonly BinaryStore $store,
+        ?LocalStorage $storage = null,
+        ?string $version = null,
         private readonly ?string $downloadUrl = null,
     ) {
+        $this->storage = $storage ?? new LocalStorage();
+        $this->version = $version ?? self::installedVersion();
     }
 
-    public function store(): BinaryStore
+    public function storage(): LocalStorage
     {
-        return $this->store;
+        return $this->storage;
+    }
+
+    public function version(): string
+    {
+        return $this->version;
     }
 
     public function assetUrl(Tool $tool): string
@@ -43,13 +64,35 @@ final class Installer
         $base = $this->downloadUrl ?? (getenv(self::DOWNLOAD_URL_ENV) ?: null);
 
         if ($base === null) {
-            $version = $this->store->version();
-            $base = $version === BinaryStore::LATEST
+            $base = $this->version === self::LATEST
                 ? 'https://github.com/' . self::REPOSITORY . '/releases/latest/download'
-                : 'https://github.com/' . self::REPOSITORY . '/releases/download/' . rawurlencode($version);
+                : 'https://github.com/' . self::REPOSITORY . '/releases/download/' . rawurlencode($this->version);
         }
 
         return rtrim($base, '/') . '/' . $tool->assetName();
+    }
+
+    /**
+     * The release tag matching this package's installed version, or "latest" for development installs.
+     */
+    public static function installedVersion(): string
+    {
+        try {
+            $version = InstalledVersions::getPrettyVersion(self::PACKAGE);
+        } catch (\OutOfBoundsException) {
+            $version = null;
+        }
+
+        // Branches ("dev-main", "1.x-dev") and a root package without a version ("1.0.0+no-version-set") have no release.
+        if ($version === null
+            || str_starts_with($version, 'dev-')
+            || str_ends_with($version, '-dev')
+            || str_ends_with($version, '+no-version-set')
+        ) {
+            return self::LATEST;
+        }
+
+        return $version;
     }
 
     /**
@@ -64,16 +107,10 @@ final class Installer
     public function install(Tool $tool, ?\Closure $onProgress = null): string
     {
         $url = $this->assetUrl($tool);
-        $dir = $this->store->versionDir();
+        $dir = $this->storage->runnersDir();
 
-        if (!is_dir($dir) && !@mkdir($dir, 0777, true) && !is_dir($dir)) {
+        if (!$this->storage->ensureDirectory($dir)) {
             throw InstallFailedException::cannotWrite($dir);
-        }
-
-        // Binaries live inside the project, so keep them (hundreds of MB) out of its git repository.
-        $gitignore = $this->store->home() . '/.gitignore';
-        if (!is_file($gitignore)) {
-            @file_put_contents($gitignore, "*\n");
         }
 
         $temp = "{$dir}/.{$tool->value}-" . bin2hex(random_bytes(4));
@@ -113,8 +150,8 @@ final class Installer
             Path::remove($temp);
         }
 
-        $path = $this->store->path($tool);
-        if (!$this->store->isInstalled($tool)) {
+        $path = $this->storage->binaryPath($tool);
+        if (!$this->storage->isInstalled($tool)) {
             throw InstallFailedException::notExecutable($path);
         }
 

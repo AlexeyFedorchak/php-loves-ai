@@ -39,22 +39,27 @@ vendor/bin/setup text-to-image    # optional: the image generation runner (a few
 👉 Pull a model: vendor/bin/pull <model>
 ```
 
-Binaries are installed inside your project, next to `vendor/`:
+### Where models and runners live
+
+Everything is stored inside your project, next to `vendor/`, in one fixed place:
 
 ```
-<project root>/.local/share/php-loves-ai/bin/<version>/
+<project root>/.local/
+├── models/    models pulled by `vendor/bin/pull`, as models/<model id>
+└── runners/   binaries installed by `vendor/bin/setup`
 ```
 
-The location depends only on the project directory, never on the user, `HOME` or environment variables. So the
-CLI, the web server (php-fpm running as `www-data`), queue workers and other containers sharing the project directory
-all find the binaries `setup` installed, without any configuration. On a server or in Docker, run `setup` once in the
-project and forget about it. The web server's user needs read and execute access to the directory.
+These paths cannot be changed. They depend only on the project directory, never on the user, `HOME`, the working
+directory or environment variables. So the CLI, the web server (php-fpm running as `www-data`), queue workers and other
+containers sharing the project directory all find the same models and runners, and no code or config ever needs a path.
+On a server or in Docker, run `setup` and `pull` once in the project and forget about it. The web server's user needs
+read and execute access to `.local`.
 
-`setup` adds a `.gitignore` there, so the binaries are never committed. Add `.local/` to `.dockerignore` if you build
-images from the project directory.
+`setup` and `pull` report the path they installed to, and add a `.gitignore` to `.local`, so its hundreds of MB are
+never committed. Add `.local/` to `.dockerignore` if you build images from the project directory.
 
-Upgrading the package switches to a new `<version>` directory, so run `vendor/bin/setup` again after an upgrade.
-`setup --force` re-downloads, and `setup --debug` shows the URLs and paths used.
+`setup --force` re-downloads, and `setup --debug` shows the URLs and paths used. After upgrading the package, run
+`vendor/bin/setup --force` (plus `setup text-to-image --force` if you use it) to get the matching binaries.
 
 Running a command before its binary is installed fails with `The puller is not installed yet.` and a hint to run
 `setup`.
@@ -67,44 +72,39 @@ The puller needs a Hugging Face API key in the `HUGGING_FACE_API_KEY` environmen
 ### From the command line
 
 ```bash
-vendor/bin/pull openai-community/gpt2 [--dir=~/tmp/hugging-face/models] [--revision=main] [--log-file=PATH] [--debug]
+vendor/bin/pull openai-community/gpt2 [--revision=main] [--log-file=PATH] [--debug]
 ```
 
 ```
 ☕ Pulling openai-community/gpt2… Big downloads take a moment — perfect time for a cup of tea and some cookies 🍪
 If you wish to see all logs, re-run the command with the "--debug" option.
-🎉 Pulled openai-community/gpt2 into /Users/you/tmp/hugging-face/models/openai-community/gpt2
+🎉 Pulled openai-community/gpt2 into /var/www/my-app/.local/models/openai-community/gpt2
 ```
 
 The opening message is picked at random from a few cozy variants (see `PullCommand::INTROS`).
 
-Pulls one model at a time into `<dir>/<model id>`. The puller's own output is hidden unless `--debug` is given.
+Pulls one model at a time into `.local/models/<model id>`. The puller's own output is hidden unless `--debug` is given.
 To keep that output, set a log file — each run is appended to it with a timestamp, the puller's output and the
 outcome. Output is colored on terminals; set `NO_COLOR=1` to disable colors.
 Exit codes: `0` success, `1` pull failed, `2` invalid usage. Run `vendor/bin/pull --help` for details.
 
 Defaults come from `config/pull.php`:
 
-| Key          | Default                                      | Overridden by |
-|--------------|----------------------------------------------|---------------|
-| `revision`   | `main`                                       | `--revision`  |
-| `models_dir` | `~/tmp/hugging-face/models` (`~` = home dir) | `--dir`       |
-| `log_file`   | `null` (output discarded)                    | `--log-file`  |
-| `binary`     | `null` (the one installed by `setup`)        | —             |
+| Key        | Default                   | Overridden by |
+|------------|---------------------------|---------------|
+| `revision` | `main`                    | `--revision`  |
+| `log_file` | `null` (output discarded) | `--log-file`  |
 
 ### From PHP
 
 ```php
 use PhpLovesAi\Process\ModelPuller;
 
-// Uses the binary installed by `vendor/bin/setup`; `new ModelPuller($binaryPath, $modelsDir)` takes an explicit one.
-$puller = ModelPuller::installed(modelsDir: '~/tmp/hugging-face/models');
-
-$paths = $puller->pull(
+$paths = (new ModelPuller())->pull(
     ['openai-community/gpt2', 'distilbert/distilbert-base-uncased'],
     onProgress: fn (string $chunk) => fwrite(STDERR, $chunk),
 );
-// ['openai-community/gpt2' => '/Users/you/tmp/hugging-face/models/openai-community/gpt2', ...]
+// ['openai-community/gpt2' => '/var/www/my-app/.local/models/openai-community/gpt2', ...]
 ```
 
 Failures throw exceptions implementing `PhpLovesAi\Exception\PhpLovesAiException`. `PullFailedException::$pulled`
@@ -113,7 +113,7 @@ lists the models that were pulled successfully before the failure.
 The binary can also be used directly:
 
 ```bash
-HUGGING_FACE_API_KEY=hf_... puller-darwin-arm64 --dir ~/tmp/hugging-face/models [--revision main] -- openai-community/gpt2
+HUGGING_FACE_API_KEY=hf_... .local/runners/puller-darwin-arm64 --dir .local/models [--revision main] -- openai-community/gpt2
 ```
 
 It writes one JSON line per pulled model (`{"model": "...", "path": "..."}`) to stdout and progress to stderr.
@@ -138,7 +138,6 @@ If you wish to see all logs, re-run the command with the "--debug" option.
 
 | Option                   | Meaning                                                             |
 |--------------------------|---------------------------------------------------------------------|
-| `--dir=DIR`              | Directory the model was pulled into                                 |
 | `--output=PATH`          | Image file to write (default: timestamped `.png` in `output_dir`)   |
 | `--negative-prompt=TEXT` | What the image should not contain                                   |
 | `--steps=N`              | Inference steps (default: the model's own)                          |
@@ -150,17 +149,15 @@ If you wish to see all logs, re-run the command with the "--debug" option.
 | `--debug`                | Show the runner's output while generating                           |
 
 Values are passed to the model as-is — one it cannot handle (a prompt that is too long, an unsupported size…)
-makes the run fail. Defaults come from `config/text-to-image.php` (`models_dir`, `output_dir`, `log_file`, `binary`).
+makes the run fail. Defaults come from `config/text-to-image.php` (`output_dir`, `log_file`).
 
 ### From PHP
 
 ```php
 use PhpLovesAi\Runner\TextToImage;
 
-// Uses the binary installed by `vendor/bin/setup text-to-image`; `new TextToImage($binaryPath, $modelsDir)` takes an explicit one.
-$textToImage = TextToImage::installed(modelsDir: '~/tmp/hugging-face/models');
-
-$image = $textToImage->generate(
+// Finds the runner and the pulled model in the project's .local directory by itself.
+$image = (new TextToImage())->generate(
     model: 'stabilityai/sd-turbo',
     prompt: 'a cozy cat by the fireplace',
     outputPath: __DIR__ . '/cat.png',
@@ -171,7 +168,7 @@ $image = $textToImage->generate(
 ```
 
 Throws `BinaryNotInstalledException` when `setup text-to-image` has not been run, `ModelNotFoundException` when the
-model was not pulled into `modelsDir`, and `RunFailedException` (with the runner's error output) when generation fails.
+model was not pulled yet, and `RunFailedException` (with the runner's error output) when generation fails.
 
 ## Releasing binaries
 
@@ -207,10 +204,10 @@ python/              Python sources compiled into standalone binaries (not shipp
     text-to-image/   Generates images with diffusers models
 src/
   Enum/              Model registry
-  Binary/            Platform detection; installing (Installer) and locating (BinaryStore) the prebuilt binaries
+  Binary/            Platform detection and installing (Installer) the prebuilt binaries
   Config/            Config loading and validation
   Console/           CLI commands behind the bin/ scripts
-  Filesystem/        Path helpers (~ expansion)
+  Filesystem/        LocalStorage (the fixed .local/models and .local/runners paths) and path helpers
   Process/           PHP wrapper that invokes the puller binary (ModelPuller)
   Runner/            One class per task running pulled models (TextToImage), sharing the Runner interface
   Exception/         Package exceptions

@@ -24,9 +24,7 @@ final class PullConfigTest extends TestCase
         $config = PullConfig::load();
 
         self::assertSame('main', $config->revision);
-        self::assertSame('~/tmp/hugging-face/models', $config->modelsDir);
         self::assertNull($config->logFile);
-        self::assertNull($config->binary, 'The binary installed by setup is used by default.');
     }
 
     public function testRejectsMissingFile(): void
@@ -39,24 +37,24 @@ final class PullConfigTest extends TestCase
 
     public function testRejectsInvalidValue(): void
     {
-        $file = $this->writeConfig("<?php return ['binary' => '/bin/puller', 'models_dir' => '', 'revision' => 'main'];");
+        $file = $this->writeConfig("<?php return ['revision' => ''];");
 
         $this->expectException(InvalidConfigException::class);
-        $this->expectExceptionMessage("'models_dir' must be a non-empty string");
+        $this->expectExceptionMessage("'revision' must be a non-empty string");
 
         PullConfig::load($file);
     }
 
     public function testLoadsLogFile(): void
     {
-        $file = $this->writeConfig("<?php return ['binary' => '/bin/puller', 'models_dir' => '/models', 'revision' => 'main', 'log_file' => '/logs/pull.log'];");
+        $file = $this->writeConfig("<?php return ['revision' => 'main', 'log_file' => '/logs/pull.log'];");
 
         self::assertSame('/logs/pull.log', PullConfig::load($file)->logFile);
     }
 
     public function testRejectsInvalidLogFile(): void
     {
-        $file = $this->writeConfig("<?php return ['binary' => '/bin/puller', 'models_dir' => '/models', 'revision' => 'main', 'log_file' => 42];");
+        $file = $this->writeConfig("<?php return ['revision' => 'main', 'log_file' => 42];");
 
         $this->expectException(InvalidConfigException::class);
         $this->expectExceptionMessage("'log_file' must be a non-empty string");

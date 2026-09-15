@@ -13,9 +13,7 @@ final class TextToImageConfigTest extends TestCase
     {
         $config = TextToImageConfig::load();
 
-        self::assertSame('~/tmp/hugging-face/models', $config->modelsDir);
         self::assertSame('~/tmp/hugging-face/images', $config->outputDir);
         self::assertNull($config->logFile);
-        self::assertNull($config->binary, 'The binary installed by setup is used by default.');
     }
 }

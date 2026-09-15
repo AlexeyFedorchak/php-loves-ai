@@ -14,9 +14,6 @@ final class PullConfig
     public const DEFAULT_FILE = __DIR__ . '/../../config/pull.php';
 
     public function __construct(
-        /** Binary to run; null uses the one installed by `vendor/bin/setup`. */
-        public readonly ?string $binary,
-        public readonly string $modelsDir,
         public readonly string $revision,
         public readonly ?string $logFile = null,
     ) {
@@ -30,8 +27,6 @@ final class PullConfig
         $config = ConfigFile::load($file);
 
         return new self(
-            $config->nullableString('binary'),
-            $config->string('models_dir'),
             $config->string('revision'),
             $config->nullableString('log_file'),
         );
