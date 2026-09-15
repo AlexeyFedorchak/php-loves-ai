@@ -7,6 +7,7 @@ namespace PhpLovesAi\Runner;
 use PhpLovesAi\Exception\BinaryNotInstalledException;
 use PhpLovesAi\Exception\ModelNotFoundException;
 use PhpLovesAi\Exception\RunFailedException;
+use PhpLovesAi\Exception\UnsupportedModelException;
 use PhpLovesAi\Filesystem\LocalStorage;
 use Symfony\Component\Process\Process;
 
@@ -44,6 +45,17 @@ abstract class BinaryRunner implements Runner
         if (!is_dir($modelPath)) {
             throw new ModelNotFoundException($model, $modelPath);
         }
+
+        $this->ensureModelIsSupported($model, $modelPath);
+    }
+
+    /**
+     * Rejects a pulled model this runner cannot load, with an explanation instead of the binary's stack trace.
+     *
+     * @throws UnsupportedModelException
+     */
+    protected function ensureModelIsSupported(string $model, string $modelPath): void
+    {
     }
 
     /**
@@ -57,6 +69,7 @@ abstract class BinaryRunner implements Runner
      *
      * @throws BinaryNotInstalledException
      * @throws ModelNotFoundException
+     * @throws UnsupportedModelException
      * @throws RunFailedException
      */
     protected function run(string $model, array $options, ?callable $onOutput = null): array

@@ -8,6 +8,7 @@ use PhpLovesAi\Config\TextToImageConfig;
 use PhpLovesAi\Exception\ModelNotFoundException;
 use PhpLovesAi\Exception\PhpLovesAiException;
 use PhpLovesAi\Exception\RunFailedException;
+use PhpLovesAi\Exception\UnsupportedModelException;
 use PhpLovesAi\Filesystem\LocalStorage;
 use PhpLovesAi\Runner\TextToImage;
 
@@ -131,6 +132,7 @@ final class TextToImageCommand extends Command
     {
         return match (true) {
             $e instanceof ModelNotFoundException => "Pull it first with: vendor/bin/pull {$e->model}",
+            $e instanceof UnsupportedModelException => 'To try one: vendor/bin/pull ' . TextToImage::EXAMPLE_MODEL,
             default => parent::hintFor($e),
         };
     }

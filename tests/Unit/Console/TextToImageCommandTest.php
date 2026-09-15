@@ -29,7 +29,7 @@ final class TextToImageCommandTest extends TestCase
 
         $this->project = (new FakeProject())
             ->install(Tool::TextToImage, FakeProject::FAKE_TEXT_TO_IMAGE)
-            ->addModel('org/model');
+            ->addModel('org/model', ['model_index.json']);
     }
 
     protected function tearDown(): void
@@ -107,6 +107,18 @@ final class TextToImageCommandTest extends TestCase
             $this->contents($this->stderr),
         );
         self::assertSame('', $this->contents($this->stdout));
+    }
+
+    public function testReportsUnsupportedModelBeforeStarting(): void
+    {
+        $this->project->addModel('org/embeddings', ['embedding.pt']);
+
+        self::assertSame(TextToImageCommand::EXIT_FAILURE, $this->runCommand(['org/embeddings', 'a cat']));
+
+        $stderr = $this->contents($this->stderr);
+        self::assertStringStartsWith('Error: org/embeddings cannot generate images: it is not a complete Diffusers text-to-image model', $stderr);
+        self::assertStringEndsWith("\nTo try one: vendor/bin/pull stabilityai/sd-turbo\n", $stderr);
+        self::assertSame('', $this->contents($this->stdout), 'No intro is shown when the run cannot start.');
     }
 
     public function testReportsFailedRunWithDebugHint(): void

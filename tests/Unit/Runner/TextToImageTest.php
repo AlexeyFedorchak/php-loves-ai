@@ -8,6 +8,7 @@ use PhpLovesAi\Binary\Tool;
 use PhpLovesAi\Exception\BinaryNotInstalledException;
 use PhpLovesAi\Exception\ModelNotFoundException;
 use PhpLovesAi\Exception\RunFailedException;
+use PhpLovesAi\Exception\UnsupportedModelException;
 use PhpLovesAi\Runner\TextToImage;
 use PhpLovesAi\Tests\Support\FakeProject;
 use PHPUnit\Framework\TestCase;
@@ -20,7 +21,7 @@ final class TextToImageTest extends TestCase
     {
         $this->project = (new FakeProject())
             ->install(Tool::TextToImage, FakeProject::FAKE_TEXT_TO_IMAGE)
-            ->addModel('org/model');
+            ->addModel('org/model', ['model_index.json']);
     }
 
     protected function tearDown(): void
@@ -86,6 +87,33 @@ final class TextToImageTest extends TestCase
         $this->expectExceptionMessage("Model org/missing not found at {$this->project->root}/.local/models/org/missing.");
 
         $this->textToImage()->generate('org/missing', 'a cat', '/images/cat.png');
+    }
+
+    public function testRejectsModelThatIsNotADiffusersPipeline(): void
+    {
+        // Like Banano/banano-sd-embeddings: a textual-inversion add-on without model_index.json.
+        $this->project->addModel('org/embeddings', ['README.md', 'embedding.pt']);
+        $modelPath = "{$this->project->root}/.local/models/org/embeddings";
+        $output = '';
+
+        try {
+            $this->textToImage()->generate('org/embeddings', 'a cat', '/images/cat.png', onOutput: static function (string $chunk) use (&$output): void {
+                $output .= $chunk;
+            });
+            self::fail('Expected UnsupportedModelException.');
+        } catch (UnsupportedModelException $e) {
+            self::assertSame('org/embeddings', $e->model);
+            self::assertSame($modelPath, $e->path);
+            self::assertSame(
+                "org/embeddings cannot generate images: it is not a complete Diffusers text-to-image model ({$modelPath}/model_index.json is missing). "
+                . 'It may be an add-on such as embeddings or a LoRA, which only works on top of a base model, a model in another format, '
+                . 'or a pull that did not finish. Use a Diffusers text-to-image model instead, e.g. stabilityai/sd-turbo '
+                . '(browse: https://huggingface.co/models?pipeline_tag=text-to-image&library=diffusers).',
+                $e->getMessage(),
+            );
+        }
+
+        self::assertSame('', $output, 'The runner binary is not started.');
     }
 
     public function testRequiresInstalledRunner(): void

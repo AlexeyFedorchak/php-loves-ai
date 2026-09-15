@@ -9,6 +9,7 @@ use PhpLovesAi\Exception\BinaryNotInstalledException;
 use PhpLovesAi\Exception\HomeDirectoryNotFoundException;
 use PhpLovesAi\Exception\ModelNotFoundException;
 use PhpLovesAi\Exception\RunFailedException;
+use PhpLovesAi\Exception\UnsupportedModelException;
 use PhpLovesAi\Filesystem\Path;
 
 /**
@@ -22,9 +23,36 @@ use PhpLovesAi\Filesystem\Path;
  */
 final class TextToImage extends BinaryRunner
 {
+    /** A model the runner can load, e.g. stabilityai/sd-turbo; used in error messages. */
+    public const EXAMPLE_MODEL = 'stabilityai/sd-turbo';
+
+    /** Hugging Face models this runner can use. */
+    public const COMPATIBLE_MODELS_URL = 'https://huggingface.co/models?pipeline_tag=text-to-image&library=diffusers';
+
     public static function tool(): Tool
     {
         return Tool::TextToImage;
+    }
+
+    /**
+     * The runner loads models with diffusers' DiffusionPipeline, which needs the model_index.json describing the
+     * pipeline. Repositories without it are typically add-ons (embeddings, LoRAs) or single-file checkpoints.
+     */
+    protected function ensureModelIsSupported(string $model, string $modelPath): void
+    {
+        if (is_file("{$modelPath}/model_index.json")) {
+            return;
+        }
+
+        throw new UnsupportedModelException($model, $modelPath, sprintf(
+            '%s cannot generate images: it is not a complete Diffusers text-to-image model (%s/model_index.json is missing). '
+            . 'It may be an add-on such as embeddings or a LoRA, which only works on top of a base model, a model in another '
+            . 'format, or a pull that did not finish. Use a Diffusers text-to-image model instead, e.g. %s (browse: %s).',
+            $model,
+            $modelPath,
+            self::EXAMPLE_MODEL,
+            self::COMPATIBLE_MODELS_URL,
+        ));
     }
 
     /**
@@ -46,6 +74,7 @@ final class TextToImage extends BinaryRunner
      *
      * @throws BinaryNotInstalledException
      * @throws ModelNotFoundException
+     * @throws UnsupportedModelException when the model is not a Diffusers text-to-image model
      * @throws HomeDirectoryNotFoundException
      * @throws RunFailedException
      */

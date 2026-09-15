@@ -121,7 +121,11 @@ Exit codes: `0` success, `1` at least one model failed, `2` invalid arguments, `
 
 ## Generating images
 
-Pull a diffusers text-to-image model first, then:
+Pull a complete [Diffusers text-to-image model](https://huggingface.co/models?pipeline_tag=text-to-image&library=diffusers)
+first, such as `stabilityai/sd-turbo`. Its repository has a `model_index.json`. Add-ons like embeddings or LoRAs, and
+single-file checkpoints, cannot be used on their own: the runner rejects them with an explanation before starting.
+
+Then:
 
 ### From the command line
 
@@ -168,7 +172,8 @@ $image = (new TextToImage())->generate(
 ```
 
 Throws `BinaryNotInstalledException` when `setup text-to-image` has not been run, `ModelNotFoundException` when the
-model was not pulled yet, and `RunFailedException` (with the runner's error output) when generation fails.
+model was not pulled yet, `UnsupportedModelException` when the pulled model is not a complete Diffusers text-to-image
+model, and `RunFailedException` (with the runner's error output) when generation fails.
 
 ## Releasing binaries
 

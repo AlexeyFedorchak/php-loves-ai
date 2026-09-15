@@ -42,11 +42,18 @@ final class FakeProject
     }
 
     /**
-     * Creates an (empty) pulled model directory.
+     * Creates a pulled model directory holding $files.
+     *
+     * @param list<string> $files file names, relative to the model directory; created empty
      */
-    public function addModel(string $model): self
+    public function addModel(string $model, array $files = []): self
     {
-        mkdir($this->storage->modelPath($model), 0777, true);
+        $dir = $this->storage->modelPath($model);
+        mkdir($dir, 0777, true);
+
+        foreach ($files as $file) {
+            file_put_contents("{$dir}/{$file}", '');
+        }
 
         return $this;
     }

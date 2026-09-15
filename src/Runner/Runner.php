@@ -7,6 +7,7 @@ namespace PhpLovesAi\Runner;
 use PhpLovesAi\Binary\Tool;
 use PhpLovesAi\Exception\BinaryNotInstalledException;
 use PhpLovesAi\Exception\ModelNotFoundException;
+use PhpLovesAi\Exception\UnsupportedModelException;
 
 /**
  * Runs one task (text-to-image, …) through that task's runner binary installed by `vendor/bin/setup`, with models
@@ -27,6 +28,7 @@ interface Runner
      *
      * @throws BinaryNotInstalledException
      * @throws ModelNotFoundException
+     * @throws UnsupportedModelException when the model was pulled but this runner cannot use it
      */
     public function ensureCanRun(string $model): void;
 }
