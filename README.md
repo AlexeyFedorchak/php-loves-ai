@@ -28,16 +28,33 @@ Supported platforms: macOS arm64, Linux x86_64, Linux arm64, Windows x86_64.
 
 ```bash
 composer require php-loves-ai/php-loves-ai
-vendor/bin/setup                  # downloads the puller (~17 MB)
+vendor/bin/setup                  # downloads the puller (~17 MB) and asks for your Hugging Face API key
 vendor/bin/setup text-to-image    # optional: the image generation runner (a few hundred MB)
 ```
 
 ```
-🧰 Setting up php-loves-ai (v0.1.0) for darwin-arm64
-✅ The puller is installed.
+🧰 Setting up php-loves-ai (v0.2.0) for darwin-arm64
+🔑 Hugging Face API key (optional)
+   Public models, like stabilityai/sd-turbo, are pulled without a key. Private and gated models need one:
+   create it at https://huggingface.co/settings/tokens
+   Paste your key (hidden), or press Enter to use public models only:
+✅ Saved your Hugging Face API key to /var/www/my-app/.local/huggingface/credentials.json
+✅ The puller is installed at /var/www/my-app/.local/runners/puller-darwin-arm64
 🎉 All set! Happy hacking 🍪
 👉 Pull a model: vendor/bin/pull <model>
 ```
+
+### Hugging Face API key
+
+A key is optional. Public models are pulled without one; private and gated models need it
+(create one at https://huggingface.co/settings/tokens).
+
+`setup` asks for it once and saves the answer in `.local/huggingface/credentials.json`, readable only by its owner.
+Pressing Enter is remembered too, so `setup` does not ask again. To save or replace a key later, run
+`vendor/bin/setup --token=hf_...` or pass `--token=hf_...` to `pull`. When there is no terminal to ask in (Docker
+builds, CI, deploy scripts), `setup` skips the question; pass `--token` there if you need a key.
+
+The key is never read from environment variables, so every process running the project uses the same one.
 
 ### Where models and runners live
 
@@ -45,8 +62,9 @@ Everything is stored inside your project, next to `vendor/`, in one fixed place:
 
 ```
 <project root>/.local/
-├── models/    models pulled by `vendor/bin/pull`, as models/<model id>
-└── runners/   binaries installed by `vendor/bin/setup`
+├── models/        models pulled by `vendor/bin/pull`, as models/<model id>
+├── runners/       binaries installed by `vendor/bin/setup`
+└── huggingface/   credentials.json with your Hugging Face API key
 ```
 
 These paths cannot be changed. They depend only on the project directory, never on the user, `HOME`, the working
@@ -55,8 +73,8 @@ containers sharing the project directory all find the same models and runners, a
 On a server or in Docker, run `setup` and `pull` once in the project and forget about it. The web server's user needs
 read and execute access to `.local`.
 
-`setup` and `pull` report the path they installed to, and add a `.gitignore` to `.local`, so its hundreds of MB are
-never committed. Add `.local/` to `.dockerignore` if you build images from the project directory.
+`setup` and `pull` report the path they installed to, and add a `.gitignore` to `.local`, so its hundreds of MB and
+your API key are never committed. Add `.local/` to `.dockerignore` if you build images from the project directory.
 
 `setup --force` re-downloads, and `setup --debug` shows the URLs and paths used. After upgrading the package, run
 `vendor/bin/setup --force` (plus `setup text-to-image --force` if you use it) to get the matching binaries.
@@ -66,13 +84,13 @@ Running a command before its binary is installed fails with `The puller is not i
 
 ## Pulling models
 
-The puller needs a Hugging Face API key in the `HUGGING_FACE_API_KEY` environment variable
-(create one at https://huggingface.co/settings/tokens).
+Public models need no API key. Private and gated models use the key saved in the project (see
+[Hugging Face API key](#hugging-face-api-key)).
 
 ### From the command line
 
 ```bash
-vendor/bin/pull openai-community/gpt2 [--revision=main] [--log-file=PATH] [--debug]
+vendor/bin/pull openai-community/gpt2 [--revision=main] [--token=hf_...] [--log-file=PATH] [--debug]
 ```
 
 ```
@@ -82,6 +100,16 @@ If you wish to see all logs, re-run the command with the "--debug" option.
 ```
 
 The opening message is picked at random from a few cozy variants (see `PullCommand::INTROS`).
+
+When Hugging Face refuses a model, `pull` explains why and what to do:
+
+```
+Error: meta-llama/Llama-3.2-1B is not available: it is a gated model, which needs a Hugging Face API key.
+Re-run with your key: vendor/bin/pull meta-llama/Llama-3.2-1B --token=<your Hugging Face API key> (create one at https://huggingface.co/settings/tokens)
+```
+
+`--token` saves the key for next time. A gated model also needs its terms accepted on its Hugging Face page, with the
+account the key belongs to.
 
 Pulls one model at a time into `.local/models/<model id>`. The puller's own output is hidden unless `--debug` is given.
 To keep that output, set a log file — each run is appended to it with a timestamp, the puller's output and the
@@ -107,17 +135,20 @@ $paths = (new ModelPuller())->pull(
 // ['openai-community/gpt2' => '/var/www/my-app/.local/models/openai-community/gpt2', ...]
 ```
 
-Failures throw exceptions implementing `PhpLovesAi\Exception\PhpLovesAiException`. `PullFailedException::$pulled`
-lists the models that were pulled successfully before the failure.
+Failures throw exceptions implementing `PhpLovesAi\Exception\PhpLovesAiException`. A model Hugging Face refuses
+throws `ModelAccessDeniedException` (`$model`, `$reason`: `gated` or `not_found`, `$apiKeyUsed`); other failures throw
+`PullFailedException`. Both list the models pulled before the failure in `$pulled`. To save a key from PHP, use
+`(new PhpLovesAi\HuggingFace\Credentials())->saveApiKey('hf_...')`.
 
 The binary can also be used directly:
 
 ```bash
-HUGGING_FACE_API_KEY=hf_... .local/runners/puller-darwin-arm64 --dir .local/models [--revision main] -- openai-community/gpt2
+[HUGGING_FACE_API_KEY=hf_...] .local/runners/puller-darwin-arm64 --dir .local/models [--revision main] -- openai-community/gpt2
 ```
 
-It writes one JSON line per pulled model (`{"model": "...", "path": "..."}`) to stdout and progress to stderr.
-Exit codes: `0` success, `1` at least one model failed, `2` invalid arguments, `3` API key missing.
+It writes one JSON line per model to stdout, `{"model": "...", "path": "..."}` when pulled or
+`{"model": "...", "error": "gated|not_found"}` when refused, and progress to stderr.
+Exit codes: `0` success, `1` at least one model failed, `2` invalid arguments.
 
 ## Generating images
 
@@ -212,7 +243,8 @@ src/
   Binary/            Platform detection and installing (Installer) the prebuilt binaries
   Config/            Config loading and validation
   Console/           CLI commands behind the bin/ scripts
-  Filesystem/        LocalStorage (the fixed .local/models and .local/runners paths) and path helpers
+  Filesystem/        LocalStorage (the fixed paths inside .local) and path helpers
+  HuggingFace/       Credentials: the optional API key saved in .local/huggingface/credentials.json
   Process/           PHP wrapper that invokes the puller binary (ModelPuller)
   Runner/            One class per task running pulled models (TextToImage), sharing the Runner interface
   Exception/         Package exceptions

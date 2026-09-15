@@ -1,7 +1,12 @@
 #!/usr/bin/env bash
-# Stands in for the compiled puller binary: echoes its arguments on stderr and
-# reports every model as pulled, except "broken/model" which fails.
+# Stands in for the compiled puller binary: echoes its arguments and API key on stderr and reports every model as
+# pulled, except:
+#   broken/model   fails
+#   gated/model    is denied as gated
+#   private/model  is denied as not found unless an API key is given
+#   outdated/model exits like an old puller that required an API key for every model
 echo "args: $*" >&2
+echo "api key: ${HUGGING_FACE_API_KEY:-none}" >&2
 
 dir=""
 while [ $# -gt 0 ]; do
@@ -15,12 +20,36 @@ done
 
 status=0
 for model in "$@"; do
-    if [ "$model" = "broken/model" ]; then
-        echo "[puller] Error: failed to pull $model" >&2
-        status=1
-        continue
-    fi
-    printf '{"model": "%s", "path": "%s/%s"}\n' "$model" "$dir" "$model"
+    case "$model" in
+        broken/model)
+            echo "[puller] Error: failed to pull $model" >&2
+            status=1
+            ;;
+        gated/model)
+            echo "[puller] Error: $model is gated" >&2
+            printf '{"model": "%s", "error": "gated"}\n' "$model"
+            status=1
+            ;;
+        private/model)
+            if [ -z "$HUGGING_FACE_API_KEY" ]; then
+                echo "[puller] Error: $model was not found" >&2
+                printf '{"model": "%s", "error": "not_found"}\n' "$model"
+                status=1
+            else
+                printf '{"model": "%s", "path": "%s/%s"}\n' "$model" "$dir" "$model"
+            fi
+            ;;
+        outdated/model)
+            if [ -z "$HUGGING_FACE_API_KEY" ]; then
+                echo "[puller] Error: environment variable HUGGING_FACE_API_KEY is not set." >&2
+                exit 3
+            fi
+            printf '{"model": "%s", "path": "%s/%s"}\n' "$model" "$dir" "$model"
+            ;;
+        *)
+            printf '{"model": "%s", "path": "%s/%s"}\n' "$model" "$dir" "$model"
+            ;;
+    esac
 done
 
 exit $status

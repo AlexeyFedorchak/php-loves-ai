@@ -5,8 +5,12 @@ declare(strict_types=1);
 namespace PhpLovesAi\Console;
 
 use PhpLovesAi\Config\PullConfig;
+use PhpLovesAi\Exception\MissingApiKeyException;
+use PhpLovesAi\Exception\ModelAccessDeniedException;
+use PhpLovesAi\Exception\PhpLovesAiException;
 use PhpLovesAi\Exception\PullFailedException;
 use PhpLovesAi\Filesystem\LocalStorage;
+use PhpLovesAi\HuggingFace\Credentials;
 use PhpLovesAi\Process\ModelPuller;
 
 /**
@@ -29,7 +33,7 @@ final class PullCommand extends Command
 
     protected const NAME = 'pull';
 
-    protected const OPTIONS = ['revision', 'log-file'];
+    protected const OPTIONS = ['revision', 'token', 'log-file'];
 
     protected const USAGE = <<<'TXT'
         Usage: pull <model> [options]
@@ -41,13 +45,16 @@ final class PullCommand extends Command
 
         Options:
           --revision=REV     Branch, tag or commit hash (default: 'revision' in config/pull.php)
+          --token=KEY        Hugging Face API key for private and gated models; saved in the project for next time
           --log-file=PATH    Append the puller's output to this file (default: 'log_file' in config/pull.php)
           --debug            Show the puller's output while pulling
           -h, --help         Show this help
 
+        Public models need no API key. The key saved by `setup` or --token is stored in
+        .local/huggingface/credentials.json in the project root.
+
         Environment:
-          HUGGING_FACE_API_KEY   Hugging Face API key (required)
-          NO_COLOR               Disable colored output when set
+          NO_COLOR           Disable colored output when set
 
         TXT;
 
@@ -83,6 +90,12 @@ final class PullCommand extends Command
         $puller = new ModelPuller($this->storage);
         $puller->ensureCanPull([$model]);
 
+        if (isset($options['token'])) {
+            $credentials = new Credentials($this->storage);
+            $credentials->saveApiKey($options['token']);
+            $this->writeLine("🔑 Saved your Hugging Face API key to {$credentials->path()}");
+        }
+
         $this->startLog($options['log-file'] ?? $config->logFile, "pull {$model} (revision {$revision})");
         $this->writeIntro(self::INTROS, ['{model}' => $model]);
 
@@ -93,5 +106,17 @@ final class PullCommand extends Command
         }
 
         return $this->succeeded("Pulled {$model} into {$paths[$model]}");
+    }
+
+    protected function hintFor(PhpLovesAiException $e): ?string
+    {
+        $retryWithKey = 'Re-run with your key: vendor/bin/pull %s --token=<your Hugging Face API key> (create one at ' . Credentials::TOKENS_URL . ')';
+
+        return match (true) {
+            $e instanceof ModelAccessDeniedException && !$e->apiKeyUsed => sprintf($retryWithKey, $e->model),
+            $e instanceof ModelAccessDeniedException && $e->reason === ModelAccessDeniedException::NOT_FOUND => "Check the model id at https://huggingface.co/{$e->model}, and that your key's account can open it.",
+            $e instanceof MissingApiKeyException => sprintf($retryWithKey, '<model>') . ', or update the puller with: vendor/bin/setup --force',
+            default => parent::hintFor($e),
+        };
     }
 }

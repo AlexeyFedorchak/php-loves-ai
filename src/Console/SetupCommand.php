@@ -8,15 +8,21 @@ use PhpLovesAi\Binary\Installer;
 use PhpLovesAi\Binary\Platform;
 use PhpLovesAi\Binary\Tool;
 use PhpLovesAi\Exception\InstallFailedException;
+use PhpLovesAi\Exception\InvalidApiKeyException;
 use PhpLovesAi\Exception\PhpLovesAiException;
+use PhpLovesAi\HuggingFace\Credentials;
+use PhpLovesAi\Runner\TextToImage;
 
 /**
  * CLI entry point behind `vendor/bin/setup`: downloads the prebuilt binaries for this OS into the project's
- * .local/runners directory, where `pull` and the runners find them automatically.
+ * .local/runners directory, where `pull` and the runners find them automatically, and saves the optional
+ * Hugging Face API key into the project's credentials.
  */
 final class SetupCommand extends Command
 {
     protected const NAME = 'setup';
+
+    protected const OPTIONS = ['token'];
 
     protected const FLAGS = ['force'];
 
@@ -31,6 +37,7 @@ final class SetupCommand extends Command
                                text-to-image  needed by `text-to-image` (a few hundred MB)
 
         Options:
+          --token=KEY        Save this Hugging Face API key instead of asking for it
           --force            Download again even when already installed
           --debug            Show where binaries are downloaded from and installed to
           -h, --help         Show this help
@@ -38,23 +45,38 @@ final class SetupCommand extends Command
         Binaries are installed into .local/runners in the project root, where every process running the
         project (CLI, web server, queue worker, other containers sharing it) finds them.
 
+        A Hugging Face API key is optional: public models are pulled without one, private and gated models
+        need it. When none is saved yet, setup asks for it once (press Enter to skip) and saves the answer
+        in .local/huggingface/credentials.json.
+
         Environment:
           PHP_LOVES_AI_DOWNLOAD_URL   Base URL to download binaries from (default: this version's GitHub release)
           NO_COLOR                    Disable colored output when set
 
         TXT;
 
+    /** @var resource */
+    private $stdin;
+
+    private readonly bool $interactive;
+
     /**
-     * @param Installer|null $installer defaults to one installing into the project's .local/runners
+     * @param Installer|null $installer   defaults to one installing into the project's .local/runners
      * @param resource|null  $stdout
      * @param resource|null  $stderr
+     * @param resource|null  $stdin       where the API key is read from
+     * @param bool|null      $interactive whether to ask for the API key; defaults to whether stdin is a terminal
      */
     public function __construct(
         private ?Installer $installer = null,
         $stdout = null,
         $stderr = null,
+        $stdin = null,
+        ?bool $interactive = null,
     ) {
         parent::__construct($stdout, $stderr);
+        $this->stdin = $stdin ?? STDIN;
+        $this->interactive = $interactive ?? stream_isatty($this->stdin);
     }
 
     protected function execute(array $positional, array $options): int
@@ -69,6 +91,8 @@ final class SetupCommand extends Command
         if ($this->debug) {
             $this->writeLine("   Installing into {$storage->runnersDir()}", self::GREY);
         }
+
+        $this->setUpApiKey(new Credentials($storage), $options['token'] ?? null);
 
         foreach ($tools as $tool) {
             if (!$force && $storage->isInstalled($tool)) {
@@ -102,6 +126,88 @@ final class SetupCommand extends Command
         }
 
         return $exitCode;
+    }
+
+    /**
+     * Saves the API key given with --token, or asks for it once when none was saved or declined yet.
+     */
+    private function setUpApiKey(Credentials $credentials, ?string $token): void
+    {
+        if ($token !== null) {
+            $credentials->saveApiKey($token);
+            $this->writeLine("🔑 Saved your Hugging Face API key to {$credentials->path()}");
+
+            return;
+        }
+
+        $addLater = 'Add one any time with: vendor/bin/setup --token=<your Hugging Face API key>';
+
+        if ($credentials->isConfigured()) {
+            $this->writeLine($credentials->apiKey() !== null
+                ? "🔑 Using the Hugging Face API key saved in {$credentials->path()}"
+                : "🔑 No Hugging Face API key: only public models can be pulled. {$addLater}");
+
+            return;
+        }
+
+        if (!$this->interactive) {
+            $this->writeLine("💡 No Hugging Face API key saved: only public models can be pulled. {$addLater}", self::GREY);
+
+            return;
+        }
+
+        $this->writeLine('🔑 Hugging Face API key (optional)', self::BOLD_CYAN);
+        $this->writeLine(sprintf(
+            "   Public models, like %s, are pulled without a key. Private and gated models need one:\n   create it at %s",
+            TextToImage::EXAMPLE_MODEL,
+            Credentials::TOKENS_URL,
+        ));
+
+        while (true) {
+            $apiKey = $this->askHidden('   Paste your key (hidden), or press Enter to use public models only: ');
+
+            if ($apiKey === null || $apiKey === '') {
+                $credentials->declineApiKey();
+                $this->writeLine("👌 Continuing without a key: only public models can be pulled. {$addLater}");
+
+                return;
+            }
+
+            try {
+                $credentials->saveApiKey($apiKey);
+            } catch (InvalidApiKeyException $e) {
+                $this->writeLine("   {$e->getMessage()}", self::YELLOW);
+                continue;
+            }
+
+            $this->writeLine("✅ Saved your Hugging Face API key to {$credentials->path()}");
+
+            return;
+        }
+    }
+
+    /**
+     * Reads one line from stdin without echoing it on a terminal; null when stdin is closed.
+     */
+    private function askHidden(string $prompt): ?string
+    {
+        fwrite($this->stdout, $prompt);
+
+        $hide = DIRECTORY_SEPARATOR === '/' && stream_isatty($this->stdin);
+        if ($hide) {
+            shell_exec('stty -echo');
+        }
+
+        try {
+            $line = fgets($this->stdin);
+        } finally {
+            if ($hide) {
+                shell_exec('stty echo');
+                fwrite($this->stdout, "\n");
+            }
+        }
+
+        return $line === false ? null : trim($line);
     }
 
     protected function hintFor(PhpLovesAiException $e): ?string

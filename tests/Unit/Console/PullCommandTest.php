@@ -8,15 +8,13 @@ use PhpLovesAi\Binary\Tool;
 use PhpLovesAi\Config\PullConfig;
 use PhpLovesAi\Console\PullCommand;
 use PhpLovesAi\Filesystem\LocalStorage;
-use PhpLovesAi\Process\ModelPuller;
+use PhpLovesAi\HuggingFace\Credentials;
 use PhpLovesAi\Tests\Support\FakeProject;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 final class PullCommandTest extends TestCase
 {
-    private string|false $originalApiKey;
-
     /** @var resource */
     private $stdout;
 
@@ -31,9 +29,6 @@ final class PullCommandTest extends TestCase
 
     protected function setUp(): void
     {
-        $this->originalApiKey = getenv(ModelPuller::API_KEY_ENV);
-        putenv(ModelPuller::API_KEY_ENV . '=test-key');
-
         $this->stdout = self::memoryStream();
         $this->stderr = self::memoryStream();
         $this->logDir = sys_get_temp_dir() . '/pull-command-test-' . bin2hex(random_bytes(4));
@@ -43,10 +38,6 @@ final class PullCommandTest extends TestCase
 
     protected function tearDown(): void
     {
-        putenv($this->originalApiKey === false
-            ? ModelPuller::API_KEY_ENV
-            : ModelPuller::API_KEY_ENV . '=' . $this->originalApiKey);
-
         foreach (["{$this->logDir}/pull.log", "{$this->logDir}/nested/pull.log"] as $file) {
             is_file($file) && unlink($file);
         }
@@ -232,13 +223,50 @@ final class PullCommandTest extends TestCase
         self::assertSame('', $this->contents($this->stdout));
     }
 
-    public function testReportsMissingApiKey(): void
+    public function testSuggestsTokenForUnavailableModelWithoutApiKey(): void
     {
-        putenv(ModelPuller::API_KEY_ENV);
+        self::assertSame(PullCommand::EXIT_FAILURE, $this->runCommand(['private/model']));
 
-        self::assertSame(PullCommand::EXIT_FAILURE, $this->runCommand(['org/a']));
-        self::assertStringContainsString('Environment variable HUGGING_FACE_API_KEY is not set', $this->contents($this->stderr));
-        self::assertSame('', $this->contents($this->stdout), 'No intro is shown when the pull cannot start.');
+        self::assertSame(
+            "Error: private/model is not available: it does not exist, or it is private and needs a Hugging Face API key.\n"
+            . "Re-run with your key: vendor/bin/pull private/model --token=<your Hugging Face API key> (create one at https://huggingface.co/settings/tokens)\n",
+            $this->contents($this->stderr),
+        );
+    }
+
+    public function testTokenIsSavedAndUsed(): void
+    {
+        self::assertSame(PullCommand::EXIT_OK, $this->runCommand(['private/model', '--token=hf_given']));
+
+        $credentials = new Credentials($this->project->storage);
+        self::assertSame('hf_given', $credentials->apiKey());
+        self::assertStringContainsString("🔑 Saved your Hugging Face API key to {$credentials->path()}\n", $this->contents($this->stdout));
+        self::assertStringContainsString("🎉 Pulled private/model into {$this->modelsDir}/private/model", $this->contents($this->stdout));
+
+        $this->stdout = self::memoryStream();
+        self::assertSame(PullCommand::EXIT_OK, $this->runCommand(['private/model']), 'The saved key is used next time.');
+        self::assertStringNotContainsString('🔑', $this->contents($this->stdout));
+    }
+
+    public function testRejectsInvalidToken(): void
+    {
+        self::assertSame(PullCommand::EXIT_USAGE, $this->runCommand(['private/model', '--token=oops']));
+
+        self::assertStringContainsString("'oops' is not a Hugging Face API key", $this->contents($this->stderr));
+        self::assertFalse((new Credentials($this->project->storage))->isConfigured());
+    }
+
+    public function testExplainsGatedModelWithApiKey(): void
+    {
+        (new Credentials($this->project->storage))->saveApiKey('hf_saved');
+
+        self::assertSame(PullCommand::EXIT_FAILURE, $this->runCommand(['gated/model']));
+
+        self::assertSame(
+            "Error: gated/model is not available with your Hugging Face API key: it is a gated model. "
+            . "Open https://huggingface.co/gated/model, accept its terms with the account the key belongs to, and try again.\n",
+            $this->contents($this->stderr),
+        );
     }
 
     /**

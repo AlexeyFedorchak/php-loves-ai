@@ -12,6 +12,7 @@ use PhpLovesAi\Binary\Tool;
  *
  *   <project root>/.local/models/<model id>
  *   <project root>/.local/runners/<tool executable>
+ *   <project root>/.local/huggingface/credentials.json
  *
  * Paths depend only on the project directory, never on the user, HOME, the working directory or any environment
  * variable, so `setup`, `pull`, the CLI, a web server, queue workers and other containers sharing the project all
@@ -47,6 +48,12 @@ final class LocalStorage
     public function runnersDir(): string
     {
         return $this->dir . '/runners';
+    }
+
+    /** <project root>/.local/huggingface/credentials.json, holding the Hugging Face API key (see Credentials) */
+    public function credentialsPath(): string
+    {
+        return $this->dir . '/huggingface/credentials.json';
     }
 
     /** Directory a model is pulled into and loaded from, e.g. <project root>/.local/models/stabilityai/sd-turbo */

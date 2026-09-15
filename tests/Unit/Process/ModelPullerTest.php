@@ -8,7 +8,9 @@ use PhpLovesAi\Binary\Tool;
 use PhpLovesAi\Exception\BinaryNotInstalledException;
 use PhpLovesAi\Exception\InvalidModelIdException;
 use PhpLovesAi\Exception\MissingApiKeyException;
+use PhpLovesAi\Exception\ModelAccessDeniedException;
 use PhpLovesAi\Exception\PullFailedException;
+use PhpLovesAi\HuggingFace\Credentials;
 use PhpLovesAi\Process\ModelPuller;
 use PhpLovesAi\Tests\Support\FakeProject;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -16,7 +18,7 @@ use PHPUnit\Framework\TestCase;
 
 final class ModelPullerTest extends TestCase
 {
-    private string|false $originalApiKey;
+    private const API_KEY_ENV = 'HUGGING_FACE_API_KEY';
 
     private FakeProject $project;
 
@@ -24,19 +26,12 @@ final class ModelPullerTest extends TestCase
 
     protected function setUp(): void
     {
-        $this->originalApiKey = getenv(ModelPuller::API_KEY_ENV);
-        putenv(ModelPuller::API_KEY_ENV . '=test-key');
-
         $this->project = (new FakeProject())->install(Tool::Puller, FakeProject::FAKE_PULLER);
         $this->modelsDir = "{$this->project->root}/.local/models";
     }
 
     protected function tearDown(): void
     {
-        putenv($this->originalApiKey === false
-            ? ModelPuller::API_KEY_ENV
-            : ModelPuller::API_KEY_ENV . '=' . $this->originalApiKey);
-
         $this->project->remove();
     }
 
@@ -80,13 +75,65 @@ final class ModelPullerTest extends TestCase
         }
     }
 
-    public function testRequiresApiKey(): void
+    public function testPullsPublicModelsWithoutApiKey(): void
     {
-        putenv(ModelPuller::API_KEY_ENV);
+        $progress = $this->pullAndCaptureProgress(['openai-community/gpt2']);
 
+        self::assertStringContainsString('api key: none', $progress);
+    }
+
+    public function testPassesSavedApiKey(): void
+    {
+        (new Credentials($this->project->storage))->saveApiKey('hf_saved');
+
+        self::assertSame(['private/model' => "{$this->modelsDir}/private/model"], $this->puller()->pull(['private/model']));
+        self::assertStringContainsString('api key: hf_saved', $this->pullAndCaptureProgress(['org/model']));
+    }
+
+    public function testIgnoresApiKeyFromEnvironment(): void
+    {
+        putenv(self::API_KEY_ENV . '=hf_from_shell');
+
+        try {
+            self::assertStringContainsString('api key: none', $this->pullAndCaptureProgress(['org/model']));
+        } finally {
+            putenv(self::API_KEY_ENV);
+        }
+    }
+
+    public function testReportsPrivateModelWithoutApiKey(): void
+    {
+        try {
+            $this->puller()->pull(['org/first', 'private/model']);
+            self::fail('Expected ModelAccessDeniedException.');
+        } catch (ModelAccessDeniedException $e) {
+            self::assertSame('private/model', $e->model);
+            self::assertSame(ModelAccessDeniedException::NOT_FOUND, $e->reason);
+            self::assertFalse($e->apiKeyUsed);
+            self::assertSame(['org/first' => "{$this->modelsDir}/org/first"], $e->pulled);
+            self::assertSame('private/model is not available: it does not exist, or it is private and needs a Hugging Face API key.', $e->getMessage());
+        }
+    }
+
+    public function testReportsGatedModel(): void
+    {
+        (new Credentials($this->project->storage))->saveApiKey('hf_saved');
+
+        try {
+            $this->puller()->pull(['gated/model']);
+            self::fail('Expected ModelAccessDeniedException.');
+        } catch (ModelAccessDeniedException $e) {
+            self::assertSame(ModelAccessDeniedException::GATED, $e->reason);
+            self::assertTrue($e->apiKeyUsed);
+            self::assertStringContainsString('Open https://huggingface.co/gated/model, accept its terms', $e->getMessage());
+        }
+    }
+
+    public function testReportsOutdatedPullerThatRequiresApiKey(): void
+    {
         $this->expectException(MissingApiKeyException::class);
 
-        $this->puller()->pull(['openai-community/gpt2']);
+        $this->puller()->pull(['outdated/model']);
     }
 
     public function testRequiresInstalledPuller(): void
@@ -120,6 +167,19 @@ final class ModelPullerTest extends TestCase
         yield 'path traversal' => ['org/../../etc'];
         yield 'too many segments' => ['a/b/c'];
         yield 'empty' => [''];
+    }
+
+    /**
+     * @param list<string> $models
+     */
+    private function pullAndCaptureProgress(array $models): string
+    {
+        $progress = '';
+        $this->puller()->pull($models, onProgress: static function (string $chunk) use (&$progress): void {
+            $progress .= $chunk;
+        });
+
+        return $progress;
     }
 
     private function puller(): ModelPuller
