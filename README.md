@@ -39,19 +39,22 @@ vendor/bin/setup text-to-image    # optional: the image generation runner (a few
 👉 Pull a model: vendor/bin/pull <model>
 ```
 
-Binaries are installed per package version into the per-user application data directory, where `pull` and
-`text-to-image` find them without any configuration:
+Binaries are installed inside your project, next to `vendor/`:
 
-| OS      | Location                                                   |
-|---------|------------------------------------------------------------|
-| macOS   | `~/Library/Application Support/php-loves-ai/bin/<version>` |
-| Linux   | `$XDG_DATA_HOME/php-loves-ai/bin/<version>` (default `~/.local/share/…`) |
-| Windows | `%LOCALAPPDATA%\php-loves-ai\bin\<version>`                |
+```
+<project root>/.local/share/php-loves-ai/bin/<version>/
+```
+
+The location depends only on the project directory, never on the user, `HOME` or environment variables. So the
+CLI, the web server (php-fpm running as `www-data`), queue workers and other containers sharing the project directory
+all find the binaries `setup` installed, without any configuration. On a server or in Docker, run `setup` once in the
+project and forget about it. The web server's user needs read and execute access to the directory.
+
+`setup` adds a `.gitignore` there, so the binaries are never committed. Add `.local/` to `.dockerignore` if you build
+images from the project directory.
 
 Upgrading the package switches to a new `<version>` directory, so run `vendor/bin/setup` again after an upgrade.
-Set `PHP_LOVES_AI_HOME` to install elsewhere — e.g. in a Docker image, or when a web server runs PHP as a different
-user than the one who ran `setup` (the variable must then be set for both). `setup --force` re-downloads, and
-`setup --debug` shows the URLs and paths used.
+`setup --force` re-downloads, and `setup --debug` shows the URLs and paths used.
 
 Running a command before its binary is installed fails with `The puller is not installed yet.` and a hint to run
 `setup`.
@@ -152,12 +155,12 @@ makes the run fail. Defaults come from `config/text-to-image.php` (`models_dir`,
 ### From PHP
 
 ```php
-use PhpLovesAi\Process\TextToImageRunner;
+use PhpLovesAi\Runner\TextToImage;
 
-// Uses the binary installed by `vendor/bin/setup text-to-image`.
-$runner = TextToImageRunner::installed(modelsDir: '~/tmp/hugging-face/models');
+// Uses the binary installed by `vendor/bin/setup text-to-image`; `new TextToImage($binaryPath, $modelsDir)` takes an explicit one.
+$textToImage = TextToImage::installed(modelsDir: '~/tmp/hugging-face/models');
 
-$image = $runner->generate(
+$image = $textToImage->generate(
     model: 'stabilityai/sd-turbo',
     prompt: 'a cozy cat by the fireplace',
     outputPath: __DIR__ . '/cat.png',
@@ -208,7 +211,8 @@ src/
   Config/            Config loading and validation
   Console/           CLI commands behind the bin/ scripts
   Filesystem/        Path helpers (~ expansion)
-  Process/           PHP wrappers that invoke the binaries (ModelPuller, TextToImageRunner)
+  Process/           PHP wrapper that invokes the puller binary (ModelPuller)
+  Runner/            One class per task running pulled models (TextToImage), sharing the Runner interface
   Exception/         Package exceptions
 tests/
   Unit/

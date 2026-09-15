@@ -4,15 +4,16 @@ declare(strict_types=1);
 
 namespace PhpLovesAi\Console;
 
+use PhpLovesAi\Binary\BinaryStore;
 use PhpLovesAi\Config\TextToImageConfig;
 use PhpLovesAi\Exception\BinaryNotFoundException;
 use PhpLovesAi\Exception\ModelNotFoundException;
 use PhpLovesAi\Exception\PhpLovesAiException;
 use PhpLovesAi\Exception\RunFailedException;
-use PhpLovesAi\Process\TextToImageRunner;
+use PhpLovesAi\Runner\TextToImage;
 
 /**
- * CLI entry point behind `vendor/bin/text-to-image`: generates one image via TextToImageRunner.
+ * CLI entry point behind `vendor/bin/text-to-image`: generates one image via TextToImage.
  */
 final class TextToImageCommand extends Command
 {
@@ -69,12 +70,14 @@ final class TextToImageCommand extends Command
      * @param resource|null             $stdout
      * @param resource|null             $stderr
      * @param (\Closure(int): int)|null $pickIntro see Command::__construct()
+     * @param BinaryStore|null          $store     where to find the installed runner; defaults to the project's own
      */
     public function __construct(
         private ?TextToImageConfig $config = null,
         $stdout = null,
         $stderr = null,
         ?\Closure $pickIntro = null,
+        private readonly ?BinaryStore $store = null,
     ) {
         parent::__construct($stdout, $stderr, $pickIntro);
     }
@@ -92,8 +95,8 @@ final class TextToImageCommand extends Command
 
         $modelsDir = $options['dir'] ?? $config->modelsDir;
         $runner = $config->binary !== null
-            ? new TextToImageRunner($config->binary, $modelsDir)
-            : TextToImageRunner::installed($modelsDir);
+            ? new TextToImage($config->binary, $modelsDir)
+            : TextToImage::installed($modelsDir, store: $this->store);
         $output = $options['output']
             ?? rtrim($config->outputDir, '/\\') . '/' . date('Ymd-His') . '-' . bin2hex(random_bytes(3)) . '.png';
 

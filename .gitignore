@@ -24,9 +24,11 @@ __pycache__/
 .env
 .env.*
 /approach.pdf
+/NEXT_STEPS.md
 
-# Local runtime data (models pulled with a relative --dir, logs)
+# Local runtime data (models pulled with a relative --dir, logs; binaries installed by bin/setup)
 /var/
+/.local/
 
 .DS_Store
 .idea/

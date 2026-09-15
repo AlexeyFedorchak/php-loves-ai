@@ -217,13 +217,11 @@ final class PullCommandTest extends TestCase
 
     public function testRequiresSetupWhenPullerIsNotInstalled(): void
     {
-        putenv(BinaryStore::HOME_ENV . "={$this->logDir}/empty-home");
-
-        try {
-            $exitCode = $this->runCommand(['org/a'], new PullConfig(null, '/models', 'main'));
-        } finally {
-            putenv(BinaryStore::HOME_ENV);
-        }
+        $exitCode = $this->runCommand(
+            ['org/a'],
+            new PullConfig(null, '/models', 'main'),
+            new BinaryStore("{$this->logDir}/empty-home", 'v1.0.0'),
+        );
 
         self::assertSame(PullCommand::EXIT_FAILURE, $exitCode);
         self::assertSame(
@@ -245,10 +243,10 @@ final class PullCommandTest extends TestCase
     /**
      * @param list<string> $args
      */
-    private function runCommand(array $args, ?PullConfig $config = null): int
+    private function runCommand(array $args, ?PullConfig $config = null, ?BinaryStore $store = null): int
     {
         // Always the first intro, so assertions on the output are stable.
-        $command = new PullCommand($config ?? $this->fakeConfig(), $this->stdout, $this->stderr, static fn (): int => 0);
+        $command = new PullCommand($config ?? $this->fakeConfig(), $this->stdout, $this->stderr, static fn (): int => 0, $store);
 
         return $command->run($args);
     }

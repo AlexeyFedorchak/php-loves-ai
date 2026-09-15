@@ -5,20 +5,19 @@ declare(strict_types=1);
 namespace PhpLovesAi\Binary;
 
 use Composer\InstalledVersions;
-use PhpLovesAi\Exception\HomeDirectoryNotFoundException;
-use PhpLovesAi\Filesystem\Path;
 
 /**
  * Where `vendor/bin/setup` installs binaries, and where commands look for them:
- * <home>/bin/<package version>/<tool executable>.
+ * <project root>/.local/share/php-loves-ai/bin/<package version>/<tool executable>.
  *
- * The location is derived from the OS, the platform and the installed package version only, so nothing needs to be
- * remembered between `setup` and later commands, and upgrading the package switches to matching binaries.
+ * The location is derived from the project's own directory and the installed package version only. It does not
+ * depend on the user, HOME or any environment variable, so the CLI, a web server, a queue worker or another container
+ * sharing the project all find the binaries `setup` installed, and upgrading the package switches to matching ones.
  */
 final class BinaryStore
 {
-    /** Overrides the default home directory, e.g. for Docker images or web servers running as another user. */
-    public const HOME_ENV = 'PHP_LOVES_AI_HOME';
+    /** Directory binaries are installed into, relative to the project root. */
+    public const HOME_DIR = '.local/share/php-loves-ai';
 
     public const PACKAGE = 'php-loves-ai/php-loves-ai';
 
@@ -30,10 +29,8 @@ final class BinaryStore
     private readonly string $version;
 
     /**
-     * @param string|null $home    defaults to PHP_LOVES_AI_HOME, else the OS's per-user application data directory
+     * @param string|null $home    defaults to <project root>/.local/share/php-loves-ai
      * @param string|null $version defaults to the installed version of this package
-     *
-     * @throws HomeDirectoryNotFoundException
      */
     public function __construct(?string $home = null, ?string $version = null)
     {
@@ -69,24 +66,22 @@ final class BinaryStore
     }
 
     /**
-     * macOS: ~/Library/Application Support/php-loves-ai
-     * Linux: $XDG_DATA_HOME/php-loves-ai (~/.local/share/php-loves-ai)
-     * Windows: %LOCALAPPDATA%\php-loves-ai
-     *
-     * @throws HomeDirectoryNotFoundException
+     * <project root>/.local/share/php-loves-ai
      */
     public static function defaultHome(): string
     {
-        $custom = getenv(self::HOME_ENV);
-        if (is_string($custom) && $custom !== '') {
-            return Path::expandHome($custom);
-        }
+        return self::projectRoot() . '/' . self::HOME_DIR;
+    }
 
-        return match (PHP_OS_FAMILY) {
-            'Darwin' => Path::expandHome('~/Library/Application Support/php-loves-ai'),
-            'Windows' => (getenv('LOCALAPPDATA') ?: Path::expandHome('~/AppData/Local')) . '/php-loves-ai',
-            default => (getenv('XDG_DATA_HOME') ?: Path::expandHome('~/.local/share')) . '/php-loves-ai',
-        };
+    /**
+     * The root of the project that required this package (the directory holding its composer.json), as recorded by
+     * Composer; independent of the working directory.
+     */
+    public static function projectRoot(): string
+    {
+        $path = InstalledVersions::getRootPackage()['install_path'];
+
+        return rtrim(realpath($path) ?: $path, '/\\');
     }
 
     /**

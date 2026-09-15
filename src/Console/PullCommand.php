@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace PhpLovesAi\Console;
 
+use PhpLovesAi\Binary\BinaryStore;
 use PhpLovesAi\Config\PullConfig;
 use PhpLovesAi\Exception\BinaryNotFoundException;
 use PhpLovesAi\Exception\PhpLovesAiException;
@@ -58,12 +59,14 @@ final class PullCommand extends Command
      * @param resource|null             $stdout
      * @param resource|null             $stderr
      * @param (\Closure(int): int)|null $pickIntro see Command::__construct()
+     * @param BinaryStore|null          $store     where to find the installed puller; defaults to the project's own
      */
     public function __construct(
         private ?PullConfig $config = null,
         $stdout = null,
         $stderr = null,
         ?\Closure $pickIntro = null,
+        private readonly ?BinaryStore $store = null,
     ) {
         parent::__construct($stdout, $stderr, $pickIntro);
     }
@@ -83,7 +86,7 @@ final class PullCommand extends Command
         $modelsDir = $options['dir'] ?? $config->modelsDir;
         $puller = $config->binary !== null
             ? new ModelPuller($config->binary, $modelsDir)
-            : ModelPuller::installed($modelsDir);
+            : ModelPuller::installed($modelsDir, store: $this->store);
         $puller->ensureCanPull([$model]);
 
         $this->startLog($options['log-file'] ?? $config->logFile, "pull {$model} (revision {$revision})");

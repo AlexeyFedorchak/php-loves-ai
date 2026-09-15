@@ -22,7 +22,6 @@ final class BinaryStoreTest extends TestCase
     protected function tearDown(): void
     {
         Path::remove($this->home);
-        putenv(BinaryStore::HOME_ENV);
     }
 
     public function testLaysOutBinariesByVersion(): void
@@ -51,22 +50,31 @@ final class BinaryStoreTest extends TestCase
         self::assertTrue($store->isInstalled(Tool::Puller));
     }
 
-    public function testHomeCanBeOverriddenByEnvironment(): void
+    public function testDefaultHomeIsInsideProjectRoot(): void
     {
-        putenv(BinaryStore::HOME_ENV . "={$this->home}");
+        // This repository is the root package.
+        $root = (string) realpath(__DIR__ . '/../../..');
 
-        self::assertSame($this->home, (new BinaryStore())->home());
+        self::assertSame($root, BinaryStore::projectRoot());
+        self::assertSame("{$root}/.local/share/php-loves-ai", BinaryStore::defaultHome());
+        self::assertSame("{$root}/.local/share/php-loves-ai", (new BinaryStore())->home());
     }
 
-    public function testDefaultHomeFollowsOsConventions(): void
+    public function testDefaultHomeDoesNotDependOnEnvironmentOrWorkingDirectory(): void
     {
-        $expected = match (PHP_OS_FAMILY) {
-            'Darwin' => '/Library/Application Support/php-loves-ai',
-            'Windows' => '/php-loves-ai',
-            default => '/php-loves-ai',
-        };
+        $expected = BinaryStore::defaultHome();
+        $cwd = (string) getcwd();
+        $home = getenv('HOME');
 
-        self::assertStringEndsWith($expected, BinaryStore::defaultHome());
+        try {
+            chdir(sys_get_temp_dir());
+            putenv('HOME=/nonexistent-home');
+
+            self::assertSame($expected, BinaryStore::defaultHome());
+        } finally {
+            chdir($cwd);
+            putenv($home === false ? 'HOME' : "HOME={$home}");
+        }
     }
 
     public function testDevelopmentInstallsUseLatestRelease(): void

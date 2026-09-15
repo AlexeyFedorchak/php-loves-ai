@@ -2,15 +2,19 @@
 
 declare(strict_types=1);
 
-namespace PhpLovesAi\Tests\Unit\Process;
+namespace PhpLovesAi\Tests\Unit\Runner;
 
+use PhpLovesAi\Binary\BinaryStore;
+use PhpLovesAi\Binary\Tool;
 use PhpLovesAi\Exception\BinaryNotFoundException;
+use PhpLovesAi\Exception\BinaryNotInstalledException;
 use PhpLovesAi\Exception\ModelNotFoundException;
 use PhpLovesAi\Exception\RunFailedException;
-use PhpLovesAi\Process\TextToImageRunner;
+use PhpLovesAi\Filesystem\Path;
+use PhpLovesAi\Runner\TextToImage;
 use PHPUnit\Framework\TestCase;
 
-final class TextToImageRunnerTest extends TestCase
+final class TextToImageTest extends TestCase
 {
     private const FAKE_RUNNER = __DIR__ . '/../../Fixtures/fake-text-to-image';
 
@@ -32,7 +36,7 @@ final class TextToImageRunnerTest extends TestCase
     public function testReturnsGeneratedImagePath(): void
     {
         $args = '';
-        $image = (new TextToImageRunner(self::FAKE_RUNNER, $this->modelsDir))->generate(
+        $image = (new TextToImage(self::FAKE_RUNNER, $this->modelsDir))->generate(
             'org/model',
             'a cozy cat',
             '/images/cat.png',
@@ -48,7 +52,7 @@ final class TextToImageRunnerTest extends TestCase
     public function testPassesOptionalParameters(): void
     {
         $args = '';
-        (new TextToImageRunner(self::FAKE_RUNNER, $this->modelsDir))->generate(
+        (new TextToImage(self::FAKE_RUNNER, $this->modelsDir))->generate(
             'org/model',
             'a cozy cat',
             '/images/cat.png',
@@ -73,7 +77,7 @@ final class TextToImageRunnerTest extends TestCase
     public function testThrowsWhenRunFails(): void
     {
         try {
-            (new TextToImageRunner(self::FAKE_RUNNER, $this->modelsDir))->generate('org/model', 'fail', '/images/cat.png');
+            (new TextToImage(self::FAKE_RUNNER, $this->modelsDir))->generate('org/model', 'fail', '/images/cat.png');
             self::fail('Expected RunFailedException.');
         } catch (RunFailedException $e) {
             self::assertSame(1, $e->exitCode);
@@ -86,13 +90,40 @@ final class TextToImageRunnerTest extends TestCase
         $this->expectException(ModelNotFoundException::class);
         $this->expectExceptionMessage("Model org/missing not found at {$this->modelsDir}/org/missing.");
 
-        (new TextToImageRunner(self::FAKE_RUNNER, $this->modelsDir))->generate('org/missing', 'a cat', '/images/cat.png');
+        (new TextToImage(self::FAKE_RUNNER, $this->modelsDir))->generate('org/missing', 'a cat', '/images/cat.png');
     }
 
     public function testRequiresExistingBinary(): void
     {
         $this->expectException(BinaryNotFoundException::class);
 
-        (new TextToImageRunner('/nonexistent/text-to-image', $this->modelsDir))->generate('org/model', 'a cat', '/images/cat.png');
+        (new TextToImage('/nonexistent/text-to-image', $this->modelsDir))->generate('org/model', 'a cat', '/images/cat.png');
+    }
+
+    public function testInstalledUsesBinaryFromStore(): void
+    {
+        $store = new BinaryStore("{$this->modelsDir}/home", 'v1.2.3');
+        $binary = $store->path(Tool::TextToImage);
+        mkdir(dirname($binary), 0777, true);
+        copy(self::FAKE_RUNNER, $binary);
+        chmod($binary, 0755);
+
+        try {
+            $image = TextToImage::installed($this->modelsDir, store: $store)->generate('org/model', 'a cat', '/images/cat.png');
+        } finally {
+            Path::remove("{$this->modelsDir}/home");
+        }
+
+        self::assertSame('/images/cat.png', $image);
+    }
+
+    public function testInstalledRequiresSetup(): void
+    {
+        try {
+            TextToImage::installed($this->modelsDir, store: new BinaryStore("{$this->modelsDir}/home", 'v1.2.3'));
+            self::fail('Expected BinaryNotInstalledException.');
+        } catch (BinaryNotInstalledException $e) {
+            self::assertSame(Tool::TextToImage, $e->tool);
+        }
     }
 }

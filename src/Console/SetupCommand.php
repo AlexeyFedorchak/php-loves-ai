@@ -33,11 +33,13 @@ final class SetupCommand extends Command
 
         Options:
           --force            Download again even when already installed
-          --debug            Show where binaries are downloaded from
+          --debug            Show where binaries are downloaded from and installed to
           -h, --help         Show this help
 
+        Binaries are installed into .local/share/php-loves-ai in the project root, where every process running
+        the project (CLI, web server, queue worker, other containers sharing it) finds them.
+
         Environment:
-          PHP_LOVES_AI_HOME           Install location (default: the per-user app data directory of this OS)
           PHP_LOVES_AI_DOWNLOAD_URL   Base URL to download binaries from (default: this version's GitHub release)
           NO_COLOR                    Disable colored output when set
 

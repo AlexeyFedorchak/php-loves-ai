@@ -48,6 +48,15 @@ final class InstallerTest extends TestCase
         self::assertSame([Platform::binaryName('puller'), 'text-to-image-' . Platform::current()], self::entries($this->store->versionDir()), 'No temporary files are left behind.');
     }
 
+    public function testKeepsBinariesOutOfGit(): void
+    {
+        $this->release->publish(Tool::Puller);
+
+        (new Installer($this->store, $this->release->url()))->install(Tool::Puller);
+
+        self::assertSame("*\n", file_get_contents("{$this->tempDir}/home/.gitignore"));
+    }
+
     public function testReportsProgress(): void
     {
         $this->release->publish(Tool::Puller);

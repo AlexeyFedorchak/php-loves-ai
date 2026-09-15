@@ -70,6 +70,12 @@ final class Installer
             throw InstallFailedException::cannotWrite($dir);
         }
 
+        // Binaries live inside the project, so keep them (hundreds of MB) out of its git repository.
+        $gitignore = $this->store->home() . '/.gitignore';
+        if (!is_file($gitignore)) {
+            @file_put_contents($gitignore, "*\n");
+        }
+
         $temp = "{$dir}/.{$tool->value}-" . bin2hex(random_bytes(4));
         $archive = "{$temp}.tar.gz";
 

@@ -148,13 +148,11 @@ final class TextToImageCommandTest extends TestCase
 
     public function testRequiresSetupWhenRunnerIsNotInstalled(): void
     {
-        putenv(BinaryStore::HOME_ENV . "={$this->tempDir}/empty-home");
-
-        try {
-            $exitCode = $this->runCommand(['org/model', 'a cat'], new TextToImageConfig(null, "{$this->tempDir}/models", '/images'));
-        } finally {
-            putenv(BinaryStore::HOME_ENV);
-        }
+        $exitCode = $this->runCommand(
+            ['org/model', 'a cat'],
+            new TextToImageConfig(null, "{$this->tempDir}/models", '/images'),
+            new BinaryStore("{$this->tempDir}/empty-home", 'v1.0.0'),
+        );
 
         self::assertSame(TextToImageCommand::EXIT_FAILURE, $exitCode);
         self::assertSame(
@@ -166,12 +164,12 @@ final class TextToImageCommandTest extends TestCase
     /**
      * @param list<string> $args
      */
-    private function runCommand(array $args, ?TextToImageConfig $config = null): int
+    private function runCommand(array $args, ?TextToImageConfig $config = null, ?BinaryStore $store = null): int
     {
         $config ??= new TextToImageConfig(self::FAKE_RUNNER, "{$this->tempDir}/models", '/images');
 
         // Always the first intro, so assertions on the output are stable.
-        return (new TextToImageCommand($config, $this->stdout, $this->stderr, static fn (): int => 0))->run($args);
+        return (new TextToImageCommand($config, $this->stdout, $this->stderr, static fn (): int => 0, $store))->run($args);
     }
 
     /**
