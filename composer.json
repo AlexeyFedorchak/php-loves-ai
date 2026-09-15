@@ -27,10 +27,12 @@
         "phpstan/phpstan": "^2.0"
     },
     "suggest": {
-        "ext-curl": "Faster download of the prebuilt puller/runner binaries"
+        "ext-openssl": "Needed by `setup` to download binaries over HTTPS (enabled in most PHP builds)"
     },
     "bin": [
-        "bin/pull"
+        "bin/setup",
+        "bin/pull",
+        "bin/text-to-image"
     ],
     "autoload": {
         "psr-4": {

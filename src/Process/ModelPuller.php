@@ -4,7 +4,10 @@ declare(strict_types=1);
 
 namespace PhpLovesAi\Process;
 
+use PhpLovesAi\Binary\BinaryStore;
+use PhpLovesAi\Binary\Tool;
 use PhpLovesAi\Exception\BinaryNotFoundException;
+use PhpLovesAi\Exception\BinaryNotInstalledException;
 use PhpLovesAi\Exception\HomeDirectoryNotFoundException;
 use PhpLovesAi\Exception\InvalidModelIdException;
 use PhpLovesAi\Exception\MissingApiKeyException;
@@ -41,6 +44,24 @@ final class ModelPuller
         private readonly ?float $timeout = null,
     ) {
         $this->modelsDir = Path::expandHome($modelsDir);
+    }
+
+    /**
+     * A puller using the binary installed by `vendor/bin/setup`.
+     *
+     * @param BinaryStore|null $store defaults to the standard install location
+     *
+     * @throws BinaryNotInstalledException
+     * @throws HomeDirectoryNotFoundException
+     */
+    public static function installed(string $modelsDir, ?float $timeout = null, ?BinaryStore $store = null): self
+    {
+        $store ??= new BinaryStore();
+        if (!$store->isInstalled(Tool::Puller)) {
+            throw new BinaryNotInstalledException(Tool::Puller);
+        }
+
+        return new self($store->path(Tool::Puller), $modelsDir, $timeout);
     }
 
     /**

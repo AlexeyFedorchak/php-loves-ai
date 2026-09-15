@@ -26,4 +26,32 @@ final class Path
 
         return rtrim($home, '/\\') . substr($path, 1);
     }
+
+    /**
+     * Deletes a file or a directory with everything in it; a missing path is ignored. Symlinks are removed, not followed.
+     */
+    public static function remove(string $path): void
+    {
+        if (is_link($path) || is_file($path)) {
+            @unlink($path);
+
+            return;
+        }
+
+        if (!is_dir($path)) {
+            return;
+        }
+
+        $entries = new \RecursiveIteratorIterator(
+            new \RecursiveDirectoryIterator($path, \FilesystemIterator::SKIP_DOTS),
+            \RecursiveIteratorIterator::CHILD_FIRST,
+        );
+
+        foreach ($entries as $entry) {
+            /** @var \SplFileInfo $entry */
+            $entry->isDir() && !$entry->isLink() ? @rmdir($entry->getPathname()) : @unlink($entry->getPathname());
+        }
+
+        @rmdir($path);
+    }
 }

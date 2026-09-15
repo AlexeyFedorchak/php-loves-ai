@@ -7,17 +7,17 @@ namespace PhpLovesAi\Config;
 use PhpLovesAi\Exception\InvalidConfigException;
 
 /**
- * Settings for pulling models, read from config/pull.php.
+ * Settings for generating images, read from config/text-to-image.php.
  */
-final class PullConfig
+final class TextToImageConfig
 {
-    public const DEFAULT_FILE = __DIR__ . '/../../config/pull.php';
+    public const DEFAULT_FILE = __DIR__ . '/../../config/text-to-image.php';
 
     public function __construct(
         /** Binary to run; null uses the one installed by `vendor/bin/setup`. */
         public readonly ?string $binary,
         public readonly string $modelsDir,
-        public readonly string $revision,
+        public readonly string $outputDir,
         public readonly ?string $logFile = null,
     ) {
     }
@@ -32,7 +32,7 @@ final class PullConfig
         return new self(
             $config->nullableString('binary'),
             $config->string('models_dir'),
-            $config->string('revision'),
+            $config->string('output_dir'),
             $config->nullableString('log_file'),
         );
     }

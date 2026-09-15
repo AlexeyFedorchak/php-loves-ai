@@ -1,0 +1,9 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+// Composer's bin proxy sets $_composer_autoload_path; fall back to this package's own vendor dir.
+require $GLOBALS['_composer_autoload_path'] ?? __DIR__ . '/../vendor/autoload.php';
+
+exit((new PhpLovesAi\Console\SetupCommand())->run(array_slice($argv, 1)));

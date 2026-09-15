@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace PhpLovesAi\Tests\Unit\Config;
 
-use PhpLovesAi\Binary\Platform;
 use PhpLovesAi\Config\PullConfig;
 use PhpLovesAi\Exception\InvalidConfigException;
 use PHPUnit\Framework\TestCase;
@@ -27,7 +26,7 @@ final class PullConfigTest extends TestCase
         self::assertSame('main', $config->revision);
         self::assertSame('~/tmp/hugging-face/models', $config->modelsDir);
         self::assertNull($config->logFile);
-        self::assertStringEndsWith('/python/puller/dist/' . Platform::binaryName('puller'), $config->binary);
+        self::assertNull($config->binary, 'The binary installed by setup is used by default.');
     }
 
     public function testRejectsMissingFile(): void

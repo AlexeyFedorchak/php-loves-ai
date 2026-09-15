@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace PhpLovesAi\Tests\Unit\Console;
 
+use PhpLovesAi\Binary\BinaryStore;
 use PhpLovesAi\Config\PullConfig;
 use PhpLovesAi\Console\PullCommand;
 use PhpLovesAi\Process\ModelPuller;
@@ -212,6 +213,24 @@ final class PullCommandTest extends TestCase
         self::assertSame(PullCommand::EXIT_FAILURE, $this->runCommand(['org/a'], $config));
         self::assertStringContainsString('Binary not found or not executable: /nonexistent/puller', $this->contents($this->stderr));
         self::assertSame('', $this->contents($this->stdout), 'No intro is shown when the pull cannot start.');
+    }
+
+    public function testRequiresSetupWhenPullerIsNotInstalled(): void
+    {
+        putenv(BinaryStore::HOME_ENV . "={$this->logDir}/empty-home");
+
+        try {
+            $exitCode = $this->runCommand(['org/a'], new PullConfig(null, '/models', 'main'));
+        } finally {
+            putenv(BinaryStore::HOME_ENV);
+        }
+
+        self::assertSame(PullCommand::EXIT_FAILURE, $exitCode);
+        self::assertSame(
+            "Error: The puller is not installed yet.\nRun vendor/bin/setup first to download it 🧰\n",
+            $this->contents($this->stderr),
+        );
+        self::assertSame('', $this->contents($this->stdout));
     }
 
     public function testReportsMissingApiKey(): void

@@ -1,24 +1,22 @@
 #!/usr/bin/env bash
 # Builds the standalone puller binary for the current platform.
-# Output: python/puller/dist/puller-<os>-<arch>
+# Output: python/puller/dist/puller-<os>-<arch>[.exe]
+# Environment: PYTHON  interpreter used to create the virtualenv (default: python3)
 set -euo pipefail
 
 cd "$(dirname "$0")"
 
-os="$(uname -s | tr '[:upper:]' '[:lower:]')"
-arch="$(uname -m)"
-case "$arch" in
-    x86_64 | amd64) arch="x86_64" ;;
-    arm64 | aarch64) arch="arm64" ;;
-esac
-name="puller-${os}-${arch}"
+name="puller-$(../platform.sh)"
 
-python3 -m venv .venv
-.venv/bin/pip install --quiet --upgrade pip
-.venv/bin/pip install --quiet -r requirements.txt "pyinstaller>=6,<7"
+"${PYTHON:-python3}" -m venv .venv
+bin=".venv/bin"
+[ -d .venv/Scripts ] && bin=".venv/Scripts" # Windows
+
+"$bin/python" -m pip install --quiet --upgrade pip
+"$bin/python" -m pip install --quiet -r requirements.txt "pyinstaller>=6,<7"
 
 # The puller has no heavy native dependencies, so a single file is fine here.
-.venv/bin/pyinstaller --noconfirm --clean --onefile \
+"$bin/pyinstaller" --noconfirm --clean --onefile \
     --name "$name" \
     --distpath dist \
     --workpath build \
