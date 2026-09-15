@@ -61,9 +61,10 @@ abstract class BinaryRunner implements Runner
     /**
      * Runs the binary with a model and returns the result object it printed.
      *
-     * @param array<string, string|int|float|null> $options  task options in order, e.g. ['--prompt' => 'a cat'];
-     *                                                       null values are left out
-     * @param (callable(string): void)|null        $onOutput receives the runner's progress output as it arrives
+     * @param array<string, string|int|float|bool|null> $options  task options in order, e.g. ['--prompt' => 'a cat'];
+     *                                                            true passes a flag without a value, false and null
+     *                                                            leave the option out
+     * @param (callable(string): void)|null             $onOutput receives the runner's progress output as it arrives
      *
      * @return array<mixed>
      *
@@ -78,7 +79,9 @@ abstract class BinaryRunner implements Runner
 
         $command = [$this->storage->binaryPath(static::tool()), '--model', $this->modelPath($model)];
         foreach ($options as $name => $value) {
-            if ($value !== null) {
+            if ($value === true) {
+                $command[] = $name;
+            } elseif ($value !== null && $value !== false) {
                 array_push($command, $name, (string) $value);
             }
         }

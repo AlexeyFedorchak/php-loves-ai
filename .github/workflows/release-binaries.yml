@@ -60,11 +60,12 @@ jobs:
           python/runners/text-to-image/build.sh
           python/runners/text-to-text/build.sh
           python/runners/image-to-text/build.sh
+          python/runners/speech-to-text/build.sh
           python/package.sh "$RUNNER_TEMP/release"
 
       - name: Check all assets were built
         run: |
-          for tool in puller text-to-image text-to-text image-to-text; do
+          for tool in puller text-to-image text-to-text image-to-text speech-to-text; do
             test -f "$RUNNER_TEMP/release/$tool-${{ matrix.platform }}.tar.gz"
             test -f "$RUNNER_TEMP/release/$tool-${{ matrix.platform }}.tar.gz.sha256"
           done

@@ -7,7 +7,8 @@ Run small Hugging Face AI models locally from PHP — no Python installation req
 The Composer package itself is tiny and contains only PHP code. The heavy parts live outside of it:
 
 1. **Puller binary** — a Python script compiled with PyInstaller that pulls models from Hugging Face and saves them locally.
-2. **Runner binaries** — one per task (text-to-image, text-to-text, image-to-text), each compiled with PyInstaller. A runner loads a
+2. **Runner binaries** — one per task (text-to-image, text-to-text, image-to-text, speech-to-text), each compiled with
+   PyInstaller. A runner loads a
    locally saved model and runs it; within a task one runner serves many models (diffusers and transformers pick the
    right architecture from the model's own config), while tasks get separate binaries because their dependencies differ.
 3. The binaries are built per platform by GitHub Actions and attached to each GitHub release.
@@ -32,6 +33,7 @@ vendor/bin/setup                  # downloads the puller (~17 MB) and asks for y
 vendor/bin/setup text-to-image    # optional: the image generation runner (a few hundred MB)
 vendor/bin/setup text-to-text     # optional: the text generation runner (a few hundred MB)
 vendor/bin/setup image-to-text    # optional: the image description runner (a few hundred MB)
+vendor/bin/setup speech-to-text   # optional: the speech transcription runner (a few hundred MB)
 ```
 
 ```
@@ -334,6 +336,77 @@ Throws `ImageNotFoundException` when the image file does not exist, `BinaryNotIn
 `UnsupportedModelException` when the model cannot read images, and `RunFailedException` (with the runner's error
 output) when generation fails, e.g. because the file is not an image.
 
+## Transcribing speech
+
+Pull a [transformers speech recognition model](https://huggingface.co/models?pipeline_tag=automatic-speech-recognition&library=transformers)
+first. Both kinds work:
+
+- **Whisper-style models**, e.g. `openai/whisper-tiny`, `openai/whisper-base` or `openai/whisper-small` (larger is more
+  accurate and slower). They are multilingual: they detect the spoken language, can be told it, and can translate the
+  speech into English.
+- **CTC models**, e.g. `facebook/wav2vec2-base-960h`. They transcribe the one language they were trained on.
+
+The runner decodes audio itself, with no FFmpeg installation needed: WAV, MP3, M4A/AAC, FLAC, OGG/Opus and the audio
+track of video files work, at any length. It rejects models it cannot load before starting, with an explanation,
+including whisper.cpp (GGML) and faster-whisper (CTranslate2) conversions, which are common on Hugging Face.
+
+### From the command line
+
+```bash
+vendor/bin/pull openai/whisper-tiny
+vendor/bin/speech-to-text openai/whisper-tiny interview.m4a
+vendor/bin/speech-to-text openai/whisper-tiny interview.m4a --timestamps
+```
+
+```
+🎧 Listening carefully with openai/whisper-tiny… Perfect time for a cup of tea and a cookie 🍪
+If you wish to see all logs, re-run the command with the "--debug" option.
+🎉 Transcript by openai/whisper-tiny:
+[00:00.00 → 00:05.56] He hoped there would be stew for dinner, turnips and carrots and bruised potatoes and fat
+[00:05.56 → 00:11.04] mutton pieces to be ladled out in thick peppered flower fatten sauce.
+```
+
+| Option                  | Meaning                                                                        |
+|-------------------------|--------------------------------------------------------------------------------|
+| `--language=LANGUAGE`   | Spoken language for Whisper-style models, e.g. `en` or `french` (default: detected) |
+| `--translate`           | Translate the speech into English (Whisper-style models)                       |
+| `--timestamps`          | Print when each segment is spoken: phrases for Whisper-style models, words for CTC models |
+| `--device=DEVICE`       | `cpu`, `cuda`, `mps`… (default: the best available)                            |
+| `--log-file=PATH`       | Append the runner's output to this file                                        |
+| `--debug`               | Show the runner's output while transcribing                                    |
+
+Defaults come from `config/speech-to-text.php` (`log_file`).
+
+### From PHP
+
+```php
+use PhpLovesAi\Runner\SpeechToText;
+
+// Finds the runner and the pulled model in the project's .local directory by itself.
+$speechToText = new SpeechToText();
+
+$transcript = $speechToText->transcribe('openai/whisper-tiny', storage_path('app/interview.m4a'));
+
+$english = $speechToText->transcribe(
+    model: 'openai/whisper-small',
+    audioPath: storage_path('app/interview-uk.mp3'),
+    language: 'uk',
+    translate: true,
+);
+
+// For subtitles: seconds from the start of the audio; the last segment may have no end.
+$segments = $speechToText->transcribeWithTimestamps('openai/whisper-tiny', storage_path('app/interview.m4a'));
+// [['start' => 0.0, 'end' => 5.56, 'text' => 'He hoped there would be stew for dinner, …'], ...]
+```
+
+Throws `AudioNotFoundException` when the file does not exist, `BinaryNotInstalledException` when `setup speech-to-text`
+has not been run, `ModelNotFoundException` when the model was not pulled yet, `UnsupportedModelException` when the model
+cannot transcribe speech (or cannot be told a language or translate), and `RunFailedException` (with the runner's error
+output) when transcription fails, e.g. because the file has no audio.
+
+Small models (`whisper-tiny`, `whisper-base`) are quick; larger models and long recordings take a while, especially on
+CPU, and each run loads the model from disk again, so run transcription in a queue job.
+
 ## Releasing binaries
 
 Publishing a GitHub release runs `.github/workflows/release-binaries.yml`, which builds every binary on each supported
@@ -348,6 +421,7 @@ python/puller/build.sh                    # → python/puller/dist/puller-<os>-<
 python/runners/text-to-image/build.sh     # → python/runners/text-to-image/dist/text-to-image-<os>-<arch>/
 python/runners/text-to-text/build.sh      # → python/runners/text-to-text/dist/text-to-text-<os>-<arch>/
 python/runners/image-to-text/build.sh     # → python/runners/image-to-text/dist/image-to-text-<os>-<arch>/
+python/runners/speech-to-text/build.sh    # → python/runners/speech-to-text/dist/speech-to-text-<os>-<arch>/
 python/package.sh                         # → python/release/*.tar.gz + *.sha256
 ```
 
@@ -355,21 +429,23 @@ Linux binaries can be built from any Docker host (including a Mac): `python/buil
 `python/build-in-docker.sh linux/arm64` builds and packs them on an old glibc base, so they run on Debian 11+, Ubuntu
 20.04+ and RHEL 9+. The release workflow uses the same script.
 
-The runners bundle torch (plus diffusers or transformers, and torchvision for image-to-text), so they are built as
-directories (~600–700 MB, ~210–220 MB packed) rather than single files; Linux builds use CPU-only torch to stay within GitHub's release asset size limit.
+The runners bundle torch (plus diffusers or transformers, torchvision for image-to-text and PyAV with FFmpeg's
+libraries for speech-to-text), so they are built as directories (~600–700 MB, ~210–220 MB packed) rather than single files; Linux builds use CPU-only torch to stay within GitHub's release asset size limit.
 To test `setup` against local assets, serve `python/release` over HTTP and set `PHP_LOVES_AI_DOWNLOAD_URL` to its URL.
 
 ## Structure
 
 ```
-bin/                 CLI scripts exposed via vendor/bin (setup, pull, text-to-image, text-to-text, image-to-text)
-config/              Package config (pull.php, text-to-image.php, text-to-text.php, image-to-text.php)
+bin/                 CLI scripts exposed via vendor/bin (setup, pull, text-to-image, text-to-text, image-to-text,
+                     speech-to-text)
+config/              Package config (pull.php and one file per runner)
 python/              Python sources compiled into standalone binaries (not shipped via Composer)
   puller/            Pulls models from Hugging Face and saves them locally
   runners/           One runner per task, running locally saved models
     text-to-image/   Generates images with diffusers models
     text-to-text/    Generates text with transformers models
     image-to-text/   Describes images with transformers models
+    speech-to-text/  Transcribes speech with transformers models
 src/
   Enum/              Model registry
   Binary/            Platform detection and installing (Installer) the prebuilt binaries
@@ -378,8 +454,8 @@ src/
   Filesystem/        LocalStorage (the fixed paths inside .local) and path helpers
   HuggingFace/       Credentials: the optional API key saved in .local/huggingface/credentials.json
   Process/           PHP wrapper that invokes the puller binary (ModelPuller)
-  Runner/            One class per task running pulled models (TextToImage, TextToText, ImageToText), sharing the
-                     Runner interface
+  Runner/            One class per task running pulled models (TextToImage, TextToText, ImageToText, SpeechToText),
+                     sharing the Runner interface
   Exception/         Package exceptions
 tests/
   Unit/

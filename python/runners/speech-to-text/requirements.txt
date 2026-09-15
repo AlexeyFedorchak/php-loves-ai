@@ -1,0 +1,7 @@
+torch>=2.5
+transformers>=4.56,<6
+av>=12
+numpy>=1.26
+safetensors>=0.4
+sentencepiece>=0.2
+protobuf>=5

@@ -34,7 +34,8 @@
         "bin/pull",
         "bin/text-to-image",
         "bin/text-to-text",
-        "bin/image-to-text"
+        "bin/image-to-text",
+        "bin/speech-to-text"
     ],
     "autoload": {
         "psr-4": {

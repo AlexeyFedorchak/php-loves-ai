@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+# Stands in for the compiled speech-to-text runner: echoes its arguments on stderr and "transcribes" the audio file's
+# name, with two segments when --timestamps is given. A file named fail.wav makes it fail.
+echo "args: $*" >&2
+
+audio=""
+timestamps=""
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --audio) audio="$2"; shift 2 ;;
+        --timestamps) timestamps=1; shift ;;
+        --translate) shift ;;
+        *) shift ;;
+    esac
+done
+
+name="$(basename "$audio")"
+if [ "$name" = "fail.wav" ]; then
+    echo "[speech-to-text] Error: $audio has no audio track" >&2
+    exit 1
+fi
+
+echo "noise a library printed to stdout"
+if [ -n "$timestamps" ]; then
+    printf '{"text": "Hello from %s. Goodbye.", "segments": [{"start": 0.0, "end": 1.5, "text": "Hello from %s."}, {"start": 3723.456, "end": null, "text": "Goodbye."}]}\n' "$name" "$name"
+else
+    printf '{"text": "Hello from %s. Goodbye."}\n' "$name"
+fi
