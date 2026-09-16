@@ -41,7 +41,7 @@ vendor/bin/loves-ai setup image-to-video   # optional: the image animation runne
 ```
 
 ```
-🧰 Setting up php-loves-ai (v0.2.0) for darwin-arm64
+🧰 Setting up php-loves-ai (v6.0.0) for darwin-arm64
 🔑 Hugging Face API key (optional)
    Public models, like stabilityai/sd-turbo, are pulled without a key. Private and gated models need one:
    create it at https://huggingface.co/settings/tokens
@@ -58,7 +58,7 @@ Everything runs through one command, `vendor/bin/loves-ai`, so nothing in `vendo
 Running it without arguments lists the tasks and marks the runners that are installed:
 
 ```
-🧰 php-loves-ai v0.5.0 — run small AI models locally, without installing Python
+🧰 php-loves-ai v6.0.0 — run small AI models locally, without installing Python
 
 Usage: vendor/bin/loves-ai <command> [arguments] [options]
 
