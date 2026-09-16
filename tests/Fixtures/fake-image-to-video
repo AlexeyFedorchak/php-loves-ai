@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+# Stands in for the compiled image-to-video runner: echoes its arguments on stderr and reports the --output path
+# as written. An image named fail.png makes it fail.
+echo "args: $*" >&2
+
+output=""
+image=""
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --output) output="$2"; shift 2 ;;
+        --image) image="$2"; shift 2 ;;
+        *) shift ;;
+    esac
+done
+
+if [ "$(basename "$image")" = "fail.png" ]; then
+    echo "[image-to-video] Error: this model animates the image on its own and takes no prompt" >&2
+    exit 1
+fi
+
+echo "noise a library printed to stdout"
+printf '{"output": "%s", "frames": 25, "width": 512, "height": 320, "fps": 8}\n' "$output"

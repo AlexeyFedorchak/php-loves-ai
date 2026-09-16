@@ -17,6 +17,7 @@ enum Tool: string
     case TextToSpeech = 'text-to-speech';
     case ImageToImage = 'image-to-image';
     case TextToVideo = 'text-to-video';
+    case ImageToVideo = 'image-to-video';
 
     public function label(): string
     {
@@ -47,6 +48,7 @@ enum Tool: string
             self::TextToSpeech => 'Read text aloud: vendor/bin/text-to-speech <model> "<text>"',
             self::ImageToImage => 'Transform an image: vendor/bin/image-to-image <model> <image>',
             self::TextToVideo => 'Generate a video: vendor/bin/text-to-video <model> "<prompt>"',
+            self::ImageToVideo => 'Animate an image: vendor/bin/image-to-video <model> <image>',
         };
     }
 
@@ -62,6 +64,7 @@ enum Tool: string
             self::TextToSpeech => 'read text aloud',
             self::ImageToImage => 'enlarge or redraw images',
             self::TextToVideo => 'generate videos',
+            self::ImageToVideo => 'animate images',
         };
     }
 

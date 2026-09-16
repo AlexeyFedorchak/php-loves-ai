@@ -7,8 +7,8 @@ Run small Hugging Face AI models locally from PHP — no Python installation req
 The Composer package itself is tiny and contains only PHP code. The heavy parts live outside of it:
 
 1. **Puller binary** — a Python script compiled with PyInstaller that pulls models from Hugging Face and saves them locally.
-2. **Runner binaries** — one per task (text-to-image, image-to-image, text-to-video, text-to-text, image-to-text,
-   speech-to-text, text-to-speech), each compiled with PyInstaller. A runner loads a
+2. **Runner binaries** — one per task (text-to-image, image-to-image, text-to-video, image-to-video, text-to-text,
+   image-to-text, speech-to-text, text-to-speech), each compiled with PyInstaller. A runner loads a
    locally saved model and runs it; within a task one runner serves many models (diffusers and transformers pick the
    right architecture from the model's own config), while tasks get separate binaries because their dependencies differ.
 3. The binaries are built per platform by GitHub Actions and attached to each GitHub release.
@@ -37,6 +37,7 @@ vendor/bin/setup speech-to-text   # optional: the speech transcription runner (a
 vendor/bin/setup text-to-speech   # optional: the speech synthesis runner (a few hundred MB)
 vendor/bin/setup image-to-image   # optional: the image enlarging and redrawing runner (a few hundred MB)
 vendor/bin/setup text-to-video    # optional: the video generation runner (a few hundred MB)
+vendor/bin/setup image-to-video   # optional: the image animation runner (a few hundred MB)
 ```
 
 ```
@@ -468,6 +469,58 @@ model was not pulled yet, `UnsupportedModelException` when the model is not a di
 pipeline says so and points to `text-to-image`), and `RunFailedException` (with the runner's error output) when
 generation fails, e.g. for an output format it cannot write or when memory runs out.
 
+## Animating images
+
+Pull a [diffusers image-to-video model](https://huggingface.co/models?pipeline_tag=image-to-video&library=diffusers)
+first. They differ in what they take:
+
+- **Image only**, e.g. `stabilityai/stable-video-diffusion-img2vid-xt`. It animates the picture on its own and refuses
+  a prompt.
+- **Image and prompt**, e.g. `Wan-AI/Wan2.1-I2V-14B-480P-Diffusers`, `zai-org/CogVideoX-5b-I2V` or LTX-Video. The
+  prompt says what should happen in the clip.
+
+A model whose repository only ships its text-to-video pipeline is converted to the image-to-video pipeline of the same
+family automatically, when diffusers has one.
+
+The same warning as for text-to-video applies: these models are large and slow, so generate in a queue job.
+
+### From the command line
+
+```bash
+vendor/bin/pull stabilityai/stable-video-diffusion-img2vid-xt
+vendor/bin/image-to-video stabilityai/stable-video-diffusion-img2vid-xt photo.jpg --output=clip.mp4
+```
+
+```
+🎬 Bringing your picture to life with stabilityai/stable-video-diffusion-img2vid-xt… Films take their time — perfect for a pot of tea and some cookies 🍪
+If you wish to see all logs, re-run the command with the "--debug" option.
+🎉 Video saved to /var/www/my-app/clip.mp4
+```
+
+The options are the same as `text-to-video`, plus `--prompt=TEXT` for models that accept one. Defaults come from
+`config/image-to-video.php` (`output_dir`, `log_file`).
+
+### From PHP
+
+```php
+use PhpLovesAi\Runner\ImageToVideo;
+
+// Finds the runner and the pulled model in the project's .local directory by itself.
+$clip = (new ImageToVideo())->generate(
+    model: 'Wan-AI/Wan2.1-I2V-14B-480P-Diffusers',
+    imagePath: storage_path('app/photo.jpg'),
+    outputPath: storage_path('app/clip.mp4'),
+    prompt: 'the camera slowly zooms out',
+    frames: 33,
+    fps: 16,
+);
+```
+
+Throws `ImageNotFoundException` when the image does not exist, `BinaryNotInstalledException` when
+`setup image-to-video` has not been run, `ModelNotFoundException` when the model was not pulled yet,
+`UnsupportedModelException` when the model is not a diffusers video pipeline, and `RunFailedException` when the run
+fails, e.g. when the model takes no prompt but one was given.
+
 ## Enlarging and redrawing images
 
 Two kinds of [image-to-image models](https://huggingface.co/models?pipeline_tag=image-to-image) work, and the runner
@@ -623,6 +676,7 @@ python/runners/speech-to-text/build.sh    # → python/runners/speech-to-text/di
 python/runners/text-to-speech/build.sh    # → python/runners/text-to-speech/dist/text-to-speech-<os>-<arch>/
 python/runners/image-to-image/build.sh    # → python/runners/image-to-image/dist/image-to-image-<os>-<arch>/
 python/runners/text-to-video/build.sh     # → python/runners/text-to-video/dist/text-to-video-<os>-<arch>/
+python/runners/image-to-video/build.sh    # → python/runners/image-to-video/dist/image-to-video-<os>-<arch>/
 python/package.sh                         # → python/release/*.tar.gz + *.sha256
 ```
 
@@ -645,6 +699,7 @@ python/              Python sources compiled into standalone binaries (not shipp
     text-to-image/   Generates images with diffusers models
     image-to-image/  Enlarges images, or redraws them with diffusers models
     text-to-video/   Generates videos with diffusers pipelines
+    image-to-video/  Animates images with diffusers pipelines
     text-to-text/    Generates text with transformers models
     image-to-text/   Describes images with transformers models
     speech-to-text/  Transcribes speech with transformers models
@@ -657,8 +712,8 @@ src/
   Filesystem/        LocalStorage (the fixed paths inside .local) and path helpers
   HuggingFace/       Credentials: the optional API key saved in .local/huggingface/credentials.json
   Process/           PHP wrapper that invokes the puller binary (ModelPuller)
-  Runner/            One class per task running pulled models (TextToImage, ImageToImage, TextToVideo, TextToText,
-                     ImageToText, SpeechToText, TextToSpeech), sharing the Runner interface
+  Runner/            One class per task running pulled models (TextToImage, ImageToImage, TextToVideo, ImageToVideo,
+                     TextToText, ImageToText, SpeechToText, TextToSpeech), sharing the Runner interface
   Exception/         Package exceptions
 tests/
   Unit/

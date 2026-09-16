@@ -29,6 +29,8 @@ final class FakeProject
 
     public const FAKE_TEXT_TO_VIDEO = __DIR__ . '/../Fixtures/fake-text-to-video';
 
+    public const FAKE_IMAGE_TO_VIDEO = __DIR__ . '/../Fixtures/fake-image-to-video';
+
     public readonly string $root;
 
     public readonly LocalStorage $storage;
