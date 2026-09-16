@@ -1,4 +1,4 @@
-# php-loves-ai
+# 🐘 ❤️ 🤖 PHP LOVES AI: easy create with AI (no python or API integrations needed)
 
 ```
 ██████╗ ██╗  ██╗██████╗      ████ ████      █████╗ ██╗
@@ -13,26 +13,26 @@
 read text aloud, enlarge photos and make short videos — on your own machine, from PHP code or the command line,
 with any matching model from Hugging Face.
 
-| Task              | What it does                                      | Example model                          |
-|-------------------|---------------------------------------------------|----------------------------------------|
-| `text-to-image`   | Generate an image from a text prompt              | `stabilityai/sd-turbo`                 |
-| `image-to-image`  | Enlarge a photo, or redraw it following a prompt  | `caidas/swin2SR-classical-sr-x2-64`    |
-| `text-to-text`    | Answer a prompt, or continue it                   | `Qwen/Qwen2.5-0.5B-Instruct`           |
-| `image-to-text`   | Describe an image, or answer questions about it   | `HuggingFaceTB/SmolVLM-256M-Instruct`  |
-| `speech-to-text`  | Transcribe speech in audio or video               | `openai/whisper-tiny`                  |
-| `text-to-speech`  | Read text aloud into an audio file                | `facebook/mms-tts-eng`                 |
-| `text-to-video`   | Generate a video from a text prompt               | `Wan-AI/Wan2.1-T2V-1.3B-Diffusers`     |
-| `image-to-video`  | Animate an image into a video                     | `stabilityai/stable-video-diffusion-img2vid-xt` |
+|    | Task              | What it does                                     | Example model                          |
+|----|-------------------|--------------------------------------------------|----------------------------------------|
+| 🎨 | `text-to-image`   | Generate an image from a text prompt             | `stabilityai/sd-turbo`                 |
+| 🔎 | `image-to-image`  | Enlarge a photo, or redraw it following a prompt | `caidas/swin2SR-classical-sr-x2-64`    |
+| ✍️ | `text-to-text`    | Answer a prompt, or continue it                  | `Qwen/Qwen2.5-0.5B-Instruct`           |
+| 👀 | `image-to-text`   | Describe an image, or answer questions about it  | `HuggingFaceTB/SmolVLM-256M-Instruct`  |
+| 🎧 | `speech-to-text`  | Transcribe speech in audio or video              | `openai/whisper-tiny`                  |
+| 🗣️ | `text-to-speech`  | Read text aloud into an audio file               | `facebook/mms-tts-eng`                 |
+| 🎬 | `text-to-video`   | Generate a video from a text prompt              | `Wan-AI/Wan2.1-T2V-1.3B-Diffusers`     |
+| 🎞️ | `image-to-video`  | Animate an image into a video                    | `stabilityai/stable-video-diffusion-img2vid-xt` |
 
-## Easy to start
+## 🚀 Easy to start
 
 ```bash
 composer require php-loves-ai/multimodal-ai-runner
 
-vendor/bin/loves-ai setup                  # one-time setup
-vendor/bin/loves-ai setup text-to-image    # add the task you need
+vendor/bin/loves-ai setup                  # 🧰 one-time setup
+vendor/bin/loves-ai setup text-to-image    # 🎨 add the task you need
 
-vendor/bin/loves-ai pull stabilityai/sd-turbo
+vendor/bin/loves-ai pull stabilityai/sd-turbo   # ☕ grab the model you like
 vendor/bin/loves-ai text-to-image stabilityai/sd-turbo "a cozy cat by the fireplace" --steps=1 --guidance=0
 ```
 
@@ -41,7 +41,7 @@ vendor/bin/loves-ai text-to-image stabilityai/sd-turbo "a cozy cat by the firepl
 🎉 Image saved to /Users/you/tmp/hugging-face/images/20260916-142501-a3f09c.png
 ```
 
-The same from PHP:
+🐘 …and the same from PHP:
 
 ```php
 use PhpLovesAi\Runner\TextToImage;
@@ -55,10 +55,10 @@ $image = (new TextToImage())->generate(
 );
 ```
 
-Run `vendor/bin/loves-ai` on its own to see every task and which ones are ready to use.
+💡 Run `vendor/bin/loves-ai` on its own to see every task and which ones are ready to use.
 
-**No Python, no API keys, no cloud.** Models run on your machine; nothing is sent anywhere. A Hugging Face key is only
-needed for private or gated models.
+🔒 **No Python, no API keys, no cloud.** Models run on your machine; nothing is sent anywhere. A Hugging Face key is
+only needed for private or gated models.
 
 ## Requirements
 
