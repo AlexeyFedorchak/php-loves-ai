@@ -1,5 +1,5 @@
 {
-    "name": "php-loves-ai/php-loves-ai",
+    "name": "php-loves-ai/multimodal-ai-runner",
     "description": "Run small Hugging Face AI models locally from PHP via prebuilt standalone binaries — no Python installation required.",
     "type": "library",
     "license": "MIT",
@@ -9,7 +9,12 @@
         "machine-learning",
         "hugging-face",
         "inference",
-        "local"
+        "local",
+        "multimodal",
+        "text-to-image",
+        "speech-to-text",
+        "text-to-speech",
+        "whisper"
     ],
     "authors": [
         {

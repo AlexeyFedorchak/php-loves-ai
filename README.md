@@ -28,7 +28,7 @@ Supported platforms: macOS arm64, Linux x86_64, Linux arm64, Windows x86_64.
 ## Installation
 
 ```bash
-composer require php-loves-ai/php-loves-ai
+composer require php-loves-ai/multimodal-ai-runner
 vendor/bin/setup                  # downloads the puller (~17 MB) and asks for your Hugging Face API key
 vendor/bin/setup text-to-image    # optional: the image generation runner (a few hundred MB)
 vendor/bin/setup text-to-text     # optional: the text generation runner (a few hundred MB)

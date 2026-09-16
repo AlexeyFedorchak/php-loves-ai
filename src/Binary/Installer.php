@@ -23,7 +23,7 @@ final class Installer
 
     public const REPOSITORY = 'AlexeyFedorchak/php-loves-ai';
 
-    public const PACKAGE = 'php-loves-ai/php-loves-ai';
+    public const PACKAGE = 'php-loves-ai/multimodal-ai-runner';
 
     /** Version used for development installs, which download from the latest release. */
     public const LATEST = 'latest';
