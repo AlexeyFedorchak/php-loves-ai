@@ -12,7 +12,7 @@ use PhpLovesAi\Exception\UnsupportedModelException;
 
 /**
  * Generates text with transformers models pulled into the project, through the runner installed by
- * `vendor/bin/setup text-to-text`.
+ * `vendor/bin/loves-ai setup text-to-text`.
  *
  *     $answer = (new TextToText())->generate('Qwen/Qwen2.5-0.5B-Instruct', 'Write a haiku about PHP.');
  *

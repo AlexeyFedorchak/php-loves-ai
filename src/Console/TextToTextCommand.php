@@ -13,7 +13,7 @@ use PhpLovesAi\Filesystem\LocalStorage;
 use PhpLovesAi\Runner\TextToText;
 
 /**
- * CLI entry point behind `vendor/bin/text-to-text`: generates text via TextToText and prints it.
+ * CLI entry point behind `vendor/bin/loves-ai text-to-text`: generates text via TextToText and prints it.
  */
 final class TextToTextCommand extends Command
 {
@@ -31,10 +31,12 @@ final class TextToTextCommand extends Command
 
     protected const NAME = 'text-to-text';
 
+    protected const DESCRIPTION = 'Generate text: answer a prompt or continue it';
+
     protected const OPTIONS = ['system', 'max-new-tokens', 'temperature', 'top-p', 'seed', 'device', 'log-file'];
 
     protected const USAGE = <<<'TXT'
-        Usage: text-to-text <model> <prompt> [options]
+        Usage: vendor/bin/loves-ai text-to-text <model> <prompt> [options]
 
         Generate text from a prompt with a transformers model pulled into .local/models in the project root.
         Chat models answer the prompt; other models continue it.
@@ -126,8 +128,8 @@ final class TextToTextCommand extends Command
     protected function hintFor(PhpLovesAiException $e): ?string
     {
         return match (true) {
-            $e instanceof ModelNotFoundException => "Pull it first with: vendor/bin/pull {$e->model}",
-            $e instanceof UnsupportedModelException => 'To try one: vendor/bin/pull ' . TextToText::EXAMPLE_MODEL,
+            $e instanceof ModelNotFoundException => "Pull it first with: vendor/bin/loves-ai pull {$e->model}",
+            $e instanceof UnsupportedModelException => 'To try one: vendor/bin/loves-ai pull ' . TextToText::EXAMPLE_MODEL,
             default => parent::hintFor($e),
         };
     }

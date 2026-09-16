@@ -74,7 +74,7 @@ final class ImageToImageCommandTest extends TestCase
     public function testShowsHelp(): void
     {
         self::assertSame(ImageToImageCommand::EXIT_OK, $this->runCommand(['--help']));
-        self::assertStringContainsString('Usage: image-to-image <model> <image> [options]', $this->contents($this->stdout));
+        self::assertStringContainsString('Usage: vendor/bin/loves-ai image-to-image <model> <image> [options]', $this->contents($this->stdout));
     }
 
     /**
@@ -85,7 +85,7 @@ final class ImageToImageCommandTest extends TestCase
     {
         self::assertSame(ImageToImageCommand::EXIT_USAGE, $this->runCommand($args));
         self::assertStringContainsString($expectedError, $this->contents($this->stderr));
-        self::assertStringContainsString("Run 'image-to-image --help' for usage.", $this->contents($this->stderr));
+        self::assertStringContainsString("Run 'vendor/bin/loves-ai image-to-image --help' for usage.", $this->contents($this->stderr));
     }
 
     /**
@@ -116,7 +116,7 @@ final class ImageToImageCommandTest extends TestCase
 
         $stderr = $this->contents($this->stderr);
         self::assertStringStartsWith('Error: org/classifier cannot turn an image into an image: it does not produce images.', $stderr);
-        self::assertStringEndsWith("\nTo try one: vendor/bin/pull caidas/swin2SR-classical-sr-x2-64\n", $stderr);
+        self::assertStringEndsWith("\nTo try one: vendor/bin/loves-ai pull caidas/swin2SR-classical-sr-x2-64\n", $stderr);
         self::assertSame('', $this->contents($this->stdout), 'No intro is shown when the run cannot start.');
     }
 
@@ -124,7 +124,7 @@ final class ImageToImageCommandTest extends TestCase
     {
         self::assertSame(ImageToImageCommand::EXIT_FAILURE, $this->runCommand(['org/missing', $this->image]));
 
-        self::assertStringEndsWith("Pull it first with: vendor/bin/pull org/missing\n", $this->contents($this->stderr));
+        self::assertStringEndsWith("Pull it first with: vendor/bin/loves-ai pull org/missing\n", $this->contents($this->stderr));
     }
 
     public function testReportsFailedRunWithDebugHint(): void
@@ -152,7 +152,7 @@ final class ImageToImageCommandTest extends TestCase
 
         self::assertSame(ImageToImageCommand::EXIT_FAILURE, $exitCode);
         self::assertSame(
-            "Error: The image-to-image runner is not installed yet.\nRun vendor/bin/setup image-to-image first to download it 🧰\n",
+            "Error: The image-to-image runner is not installed yet.\nRun vendor/bin/loves-ai setup image-to-image first to download it 🧰\n",
             $this->contents($this->stderr),
         );
     }

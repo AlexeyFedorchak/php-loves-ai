@@ -13,7 +13,7 @@ use PhpLovesAi\Filesystem\LocalStorage;
 use PhpLovesAi\Runner\ImageToText;
 
 /**
- * CLI entry point behind `vendor/bin/image-to-text`: describes an image, or answers a question about it, via
+ * CLI entry point behind `vendor/bin/loves-ai image-to-text`: describes an image, or answers a question about it, via
  * ImageToText and prints the text.
  */
 final class ImageToTextCommand extends Command
@@ -32,10 +32,12 @@ final class ImageToTextCommand extends Command
 
     protected const NAME = 'image-to-text';
 
+    protected const DESCRIPTION = 'Describe an image, or answer a question about it';
+
     protected const OPTIONS = ['max-new-tokens', 'temperature', 'seed', 'device', 'log-file'];
 
     protected const USAGE = <<<'TXT'
-        Usage: image-to-text <model> <image> [prompt] [options]
+        Usage: vendor/bin/loves-ai image-to-text <model> <image> [prompt] [options]
 
         Describe an image, or answer a question about it, with a transformers model pulled into .local/models in the
         project root.
@@ -126,8 +128,8 @@ final class ImageToTextCommand extends Command
     protected function hintFor(PhpLovesAiException $e): ?string
     {
         return match (true) {
-            $e instanceof ModelNotFoundException => "Pull it first with: vendor/bin/pull {$e->model}",
-            $e instanceof UnsupportedModelException => 'To try one: vendor/bin/pull ' . ImageToText::EXAMPLE_MODEL,
+            $e instanceof ModelNotFoundException => "Pull it first with: vendor/bin/loves-ai pull {$e->model}",
+            $e instanceof UnsupportedModelException => 'To try one: vendor/bin/loves-ai pull ' . ImageToText::EXAMPLE_MODEL,
             default => parent::hintFor($e),
         };
     }

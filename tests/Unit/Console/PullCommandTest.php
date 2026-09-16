@@ -135,7 +135,7 @@ final class PullCommandTest extends TestCase
     public function testShowsHelp(): void
     {
         self::assertSame(PullCommand::EXIT_OK, $this->runCommand(['--help']));
-        self::assertStringContainsString('Usage: pull <model> [options]', $this->contents($this->stdout));
+        self::assertStringContainsString('Usage: vendor/bin/loves-ai pull <model> [options]', $this->contents($this->stdout));
     }
 
     /**
@@ -217,7 +217,7 @@ final class PullCommandTest extends TestCase
 
         self::assertSame(PullCommand::EXIT_FAILURE, $exitCode);
         self::assertSame(
-            "Error: The puller is not installed yet.\nRun vendor/bin/setup first to download it 🧰\n",
+            "Error: The puller is not installed yet.\nRun vendor/bin/loves-ai setup first to download it 🧰\n",
             $this->contents($this->stderr),
         );
         self::assertSame('', $this->contents($this->stdout));
@@ -229,7 +229,7 @@ final class PullCommandTest extends TestCase
 
         self::assertSame(
             "Error: private/model is not available: it does not exist, or it is private and needs a Hugging Face API key.\n"
-            . "Re-run with your key: vendor/bin/pull private/model --token=<your Hugging Face API key> (create one at https://huggingface.co/settings/tokens)\n",
+            . "Re-run with your key: vendor/bin/loves-ai pull private/model --token=<your Hugging Face API key> (create one at https://huggingface.co/settings/tokens)\n",
             $this->contents($this->stderr),
         );
     }

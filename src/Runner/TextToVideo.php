@@ -14,7 +14,7 @@ use PhpLovesAi\Filesystem\Path;
 
 /**
  * Generates videos from a text prompt with diffusers pipelines pulled into the project, through the runner installed
- * by `vendor/bin/setup text-to-video`.
+ * by `vendor/bin/loves-ai setup text-to-video`.
  *
  *     $clip = (new TextToVideo())->generate('Wan-AI/Wan2.1-T2V-1.3B-Diffusers', 'a cat walking', 'cat.mp4');
  *

@@ -73,7 +73,7 @@ final class ImageToTextCommandTest extends TestCase
     public function testShowsHelp(): void
     {
         self::assertSame(ImageToTextCommand::EXIT_OK, $this->runCommand(['--help']));
-        self::assertStringContainsString('Usage: image-to-text <model> <image> [prompt] [options]', $this->contents($this->stdout));
+        self::assertStringContainsString('Usage: vendor/bin/loves-ai image-to-text <model> <image> [prompt] [options]', $this->contents($this->stdout));
     }
 
     /**
@@ -84,7 +84,7 @@ final class ImageToTextCommandTest extends TestCase
     {
         self::assertSame(ImageToTextCommand::EXIT_USAGE, $this->runCommand($args));
         self::assertStringContainsString($expectedError, $this->contents($this->stderr));
-        self::assertStringContainsString("Run 'image-to-text --help' for usage.", $this->contents($this->stderr));
+        self::assertStringContainsString("Run 'vendor/bin/loves-ai image-to-text --help' for usage.", $this->contents($this->stderr));
     }
 
     /**
@@ -114,7 +114,7 @@ final class ImageToTextCommandTest extends TestCase
 
         $stderr = $this->contents($this->stderr);
         self::assertStringStartsWith('Error: org/text-model cannot describe images: it cannot read images', $stderr);
-        self::assertStringEndsWith("\nTo try one: vendor/bin/pull HuggingFaceTB/SmolVLM-256M-Instruct\n", $stderr);
+        self::assertStringEndsWith("\nTo try one: vendor/bin/loves-ai pull HuggingFaceTB/SmolVLM-256M-Instruct\n", $stderr);
         self::assertSame('', $this->contents($this->stdout), 'No intro is shown when the run cannot start.');
     }
 
@@ -122,7 +122,7 @@ final class ImageToTextCommandTest extends TestCase
     {
         self::assertSame(ImageToTextCommand::EXIT_FAILURE, $this->runCommand(['org/missing', $this->image]));
 
-        self::assertStringEndsWith("Pull it first with: vendor/bin/pull org/missing\n", $this->contents($this->stderr));
+        self::assertStringEndsWith("Pull it first with: vendor/bin/loves-ai pull org/missing\n", $this->contents($this->stderr));
     }
 
     public function testReportsFailedRunWithDebugHint(): void
@@ -148,7 +148,7 @@ final class ImageToTextCommandTest extends TestCase
 
         self::assertSame(ImageToTextCommand::EXIT_FAILURE, $exitCode);
         self::assertSame(
-            "Error: The image-to-text runner is not installed yet.\nRun vendor/bin/setup image-to-text first to download it 🧰\n",
+            "Error: The image-to-text runner is not installed yet.\nRun vendor/bin/loves-ai setup image-to-text first to download it 🧰\n",
             $this->contents($this->stderr),
         );
     }

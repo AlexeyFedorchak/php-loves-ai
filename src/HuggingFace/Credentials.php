@@ -10,7 +10,7 @@ use PhpLovesAi\Exception\InvalidConfigException;
 use PhpLovesAi\Filesystem\LocalStorage;
 
 /**
- * The project's Hugging Face API key, saved by `vendor/bin/setup` or `pull --token` in
+ * The project's Hugging Face API key, saved by `vendor/bin/loves-ai setup` or `pull --token` in
  * <project root>/.local/huggingface/credentials.json, so every process running the project uses it.
  *
  * The key is optional: public models are pulled without one; private and gated models need it. Declining at setup
@@ -56,7 +56,7 @@ final class Credentials
 
         if ($apiKey !== null && !(is_string($apiKey) && self::isValid($apiKey))) {
             throw new InvalidConfigException(sprintf(
-                "Credentials file %s must contain {\"api_key\": \"hf_...\"} or {\"api_key\": null}; delete it and run vendor/bin/setup to save your key again.",
+                "Credentials file %s must contain {\"api_key\": \"hf_...\"} or {\"api_key\": null}; delete it and run vendor/bin/loves-ai setup to save your key again.",
                 $this->path(),
             ));
         }

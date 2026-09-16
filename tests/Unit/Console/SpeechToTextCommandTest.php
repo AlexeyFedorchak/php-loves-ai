@@ -82,7 +82,7 @@ final class SpeechToTextCommandTest extends TestCase
     public function testShowsHelp(): void
     {
         self::assertSame(SpeechToTextCommand::EXIT_OK, $this->runCommand(['--help']));
-        self::assertStringContainsString('Usage: speech-to-text <model> <audio> [options]', $this->contents($this->stdout));
+        self::assertStringContainsString('Usage: vendor/bin/loves-ai speech-to-text <model> <audio> [options]', $this->contents($this->stdout));
     }
 
     /**
@@ -93,7 +93,7 @@ final class SpeechToTextCommandTest extends TestCase
     {
         self::assertSame(SpeechToTextCommand::EXIT_USAGE, $this->runCommand($args));
         self::assertStringContainsString($expectedError, $this->contents($this->stderr));
-        self::assertStringContainsString("Run 'speech-to-text --help' for usage.", $this->contents($this->stderr));
+        self::assertStringContainsString("Run 'vendor/bin/loves-ai speech-to-text --help' for usage.", $this->contents($this->stderr));
     }
 
     /**
@@ -122,7 +122,7 @@ final class SpeechToTextCommandTest extends TestCase
 
         $stderr = $this->contents($this->stderr);
         self::assertStringStartsWith('Error: org/whisper-cpp cannot transcribe speech: it is in whisper.cpp (GGML) format', $stderr);
-        self::assertStringEndsWith("\nTo try one: vendor/bin/pull openai/whisper-tiny\n", $stderr);
+        self::assertStringEndsWith("\nTo try one: vendor/bin/loves-ai pull openai/whisper-tiny\n", $stderr);
         self::assertSame('', $this->contents($this->stdout), 'No intro is shown when the run cannot start.');
     }
 
@@ -141,7 +141,7 @@ final class SpeechToTextCommandTest extends TestCase
     {
         self::assertSame(SpeechToTextCommand::EXIT_FAILURE, $this->runCommand(['org/missing', $this->audio]));
 
-        self::assertStringEndsWith("Pull it first with: vendor/bin/pull org/missing\n", $this->contents($this->stderr));
+        self::assertStringEndsWith("Pull it first with: vendor/bin/loves-ai pull org/missing\n", $this->contents($this->stderr));
     }
 
     public function testReportsFailedRunWithDebugHint(): void
@@ -169,7 +169,7 @@ final class SpeechToTextCommandTest extends TestCase
 
         self::assertSame(SpeechToTextCommand::EXIT_FAILURE, $exitCode);
         self::assertSame(
-            "Error: The speech-to-text runner is not installed yet.\nRun vendor/bin/setup speech-to-text first to download it 🧰\n",
+            "Error: The speech-to-text runner is not installed yet.\nRun vendor/bin/loves-ai setup speech-to-text first to download it 🧰\n",
             $this->contents($this->stderr),
         );
     }

@@ -15,7 +15,7 @@ use PhpLovesAi\Filesystem\Path;
 
 /**
  * Describes images, or answers questions about them, with transformers models pulled into the project, through the
- * runner installed by `vendor/bin/setup image-to-text`.
+ * runner installed by `vendor/bin/loves-ai setup image-to-text`.
  *
  *     $caption = (new ImageToText())->generate('HuggingFaceTB/SmolVLM-256M-Instruct', __DIR__ . '/photo.jpg');
  *

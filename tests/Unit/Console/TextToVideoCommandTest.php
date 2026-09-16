@@ -71,7 +71,7 @@ final class TextToVideoCommandTest extends TestCase
     public function testShowsHelp(): void
     {
         self::assertSame(TextToVideoCommand::EXIT_OK, $this->runCommand(['--help']));
-        self::assertStringContainsString('Usage: text-to-video <model> <prompt> [options]', $this->contents($this->stdout));
+        self::assertStringContainsString('Usage: vendor/bin/loves-ai text-to-video <model> <prompt> [options]', $this->contents($this->stdout));
     }
 
     /**
@@ -82,7 +82,7 @@ final class TextToVideoCommandTest extends TestCase
     {
         self::assertSame(TextToVideoCommand::EXIT_USAGE, $this->runCommand($args));
         self::assertStringContainsString($expectedError, $this->contents($this->stderr));
-        self::assertStringContainsString("Run 'text-to-video --help' for usage.", $this->contents($this->stderr));
+        self::assertStringContainsString("Run 'vendor/bin/loves-ai text-to-video --help' for usage.", $this->contents($this->stderr));
     }
 
     /**
@@ -106,7 +106,7 @@ final class TextToVideoCommandTest extends TestCase
 
         $stderr = $this->contents($this->stderr);
         self::assertStringStartsWith('Error: org/sd cannot generate video: it generates still images (StableDiffusionPipeline); use it with text-to-image.', $stderr);
-        self::assertStringEndsWith("\nTo try one: vendor/bin/pull Wan-AI/Wan2.1-T2V-1.3B-Diffusers\n", $stderr);
+        self::assertStringEndsWith("\nTo try one: vendor/bin/loves-ai pull Wan-AI/Wan2.1-T2V-1.3B-Diffusers\n", $stderr);
         self::assertSame('', $this->contents($this->stdout), 'No intro is shown when the run cannot start.');
     }
 
@@ -114,7 +114,7 @@ final class TextToVideoCommandTest extends TestCase
     {
         self::assertSame(TextToVideoCommand::EXIT_FAILURE, $this->runCommand(['org/missing', 'a cat walking']));
 
-        self::assertStringEndsWith("Pull it first with: vendor/bin/pull org/missing\n", $this->contents($this->stderr));
+        self::assertStringEndsWith("Pull it first with: vendor/bin/loves-ai pull org/missing\n", $this->contents($this->stderr));
     }
 
     public function testReportsFailedRunWithDebugHint(): void
@@ -140,7 +140,7 @@ final class TextToVideoCommandTest extends TestCase
 
         self::assertSame(TextToVideoCommand::EXIT_FAILURE, $exitCode);
         self::assertSame(
-            "Error: The text-to-video runner is not installed yet.\nRun vendor/bin/setup text-to-video first to download it 🧰\n",
+            "Error: The text-to-video runner is not installed yet.\nRun vendor/bin/loves-ai setup text-to-video first to download it 🧰\n",
             $this->contents($this->stderr),
         );
     }

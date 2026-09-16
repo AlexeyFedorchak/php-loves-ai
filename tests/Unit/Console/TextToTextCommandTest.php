@@ -69,7 +69,7 @@ final class TextToTextCommandTest extends TestCase
     public function testShowsHelp(): void
     {
         self::assertSame(TextToTextCommand::EXIT_OK, $this->runCommand(['--help']));
-        self::assertStringContainsString('Usage: text-to-text <model> <prompt> [options]', $this->contents($this->stdout));
+        self::assertStringContainsString('Usage: vendor/bin/loves-ai text-to-text <model> <prompt> [options]', $this->contents($this->stdout));
     }
 
     /**
@@ -80,7 +80,7 @@ final class TextToTextCommandTest extends TestCase
     {
         self::assertSame(TextToTextCommand::EXIT_USAGE, $this->runCommand($args));
         self::assertStringContainsString($expectedError, $this->contents($this->stderr));
-        self::assertStringContainsString("Run 'text-to-text --help' for usage.", $this->contents($this->stderr));
+        self::assertStringContainsString("Run 'vendor/bin/loves-ai text-to-text --help' for usage.", $this->contents($this->stderr));
     }
 
     /**
@@ -101,7 +101,7 @@ final class TextToTextCommandTest extends TestCase
 
         self::assertSame(
             "Error: Model org/missing not found at {$this->project->root}/.local/models/org/missing.\n"
-            . "Pull it first with: vendor/bin/pull org/missing\n",
+            . "Pull it first with: vendor/bin/loves-ai pull org/missing\n",
             $this->contents($this->stderr),
         );
         self::assertSame('', $this->contents($this->stdout));
@@ -115,7 +115,7 @@ final class TextToTextCommandTest extends TestCase
 
         $stderr = $this->contents($this->stderr);
         self::assertStringStartsWith('Error: org/gguf cannot generate text: it is in GGUF format', $stderr);
-        self::assertStringEndsWith("\nTo try one: vendor/bin/pull Qwen/Qwen2.5-0.5B-Instruct\n", $stderr);
+        self::assertStringEndsWith("\nTo try one: vendor/bin/loves-ai pull Qwen/Qwen2.5-0.5B-Instruct\n", $stderr);
         self::assertSame('', $this->contents($this->stdout), 'No intro is shown when the run cannot start.');
     }
 
@@ -154,7 +154,7 @@ final class TextToTextCommandTest extends TestCase
 
         self::assertSame(TextToTextCommand::EXIT_FAILURE, $exitCode);
         self::assertSame(
-            "Error: The text-to-text runner is not installed yet.\nRun vendor/bin/setup text-to-text first to download it 🧰\n",
+            "Error: The text-to-text runner is not installed yet.\nRun vendor/bin/loves-ai setup text-to-text first to download it 🧰\n",
             $this->contents($this->stderr),
         );
     }

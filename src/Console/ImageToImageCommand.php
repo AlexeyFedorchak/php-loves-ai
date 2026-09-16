@@ -13,7 +13,7 @@ use PhpLovesAi\Filesystem\LocalStorage;
 use PhpLovesAi\Runner\ImageToImage;
 
 /**
- * CLI entry point behind `vendor/bin/image-to-image`: enlarges or redraws an image via ImageToImage.
+ * CLI entry point behind `vendor/bin/loves-ai image-to-image`: enlarges or redraws an image via ImageToImage.
  */
 final class ImageToImageCommand extends Command
 {
@@ -31,10 +31,12 @@ final class ImageToImageCommand extends Command
 
     protected const NAME = 'image-to-image';
 
+    protected const DESCRIPTION = 'Enlarge an image, or redraw it following a prompt';
+
     protected const OPTIONS = ['output', 'prompt', 'negative-prompt', 'strength', 'steps', 'guidance', 'seed', 'device', 'log-file'];
 
     protected const USAGE = <<<'TXT'
-        Usage: image-to-image <model> <image> [options]
+        Usage: vendor/bin/loves-ai image-to-image <model> <image> [options]
 
         Enlarge an image, or redraw it following a prompt, with a model pulled into .local/models in the project root.
 
@@ -129,8 +131,8 @@ final class ImageToImageCommand extends Command
     protected function hintFor(PhpLovesAiException $e): ?string
     {
         return match (true) {
-            $e instanceof ModelNotFoundException => "Pull it first with: vendor/bin/pull {$e->model}",
-            $e instanceof UnsupportedModelException => 'To try one: vendor/bin/pull ' . ImageToImage::EXAMPLE_MODEL,
+            $e instanceof ModelNotFoundException => "Pull it first with: vendor/bin/loves-ai pull {$e->model}",
+            $e instanceof UnsupportedModelException => 'To try one: vendor/bin/loves-ai pull ' . ImageToImage::EXAMPLE_MODEL,
             default => parent::hintFor($e),
         };
     }

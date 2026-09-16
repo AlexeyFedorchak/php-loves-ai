@@ -14,7 +14,7 @@ use PhpLovesAi\HuggingFace\Credentials;
 use PhpLovesAi\Runner\TextToImage;
 
 /**
- * CLI entry point behind `vendor/bin/setup`: downloads the prebuilt binaries for this OS into the project's
+ * CLI entry point behind `vendor/bin/loves-ai setup`: downloads the prebuilt binaries for this OS into the project's
  * .local/runners directory, where `pull` and the runners find them automatically, and saves the optional
  * Hugging Face API key into the project's credentials.
  */
@@ -22,12 +22,14 @@ final class SetupCommand extends Command
 {
     protected const NAME = 'setup';
 
+    protected const DESCRIPTION = 'Download the runner binaries for this computer';
+
     protected const OPTIONS = ['token'];
 
     protected const FLAGS = ['force'];
 
     protected const USAGE = <<<'TXT'
-        Usage: setup [binary ...] [options]
+        Usage: vendor/bin/loves-ai setup [binary ...] [options]
 
         Download the prebuilt binaries for this computer. Run it once after `composer require`.
 
@@ -147,7 +149,7 @@ final class SetupCommand extends Command
             return;
         }
 
-        $addLater = 'Add one any time with: vendor/bin/setup --token=<your Hugging Face API key>';
+        $addLater = 'Add one any time with: vendor/bin/loves-ai setup --token=<your Hugging Face API key>';
 
         if ($credentials->isConfigured()) {
             $this->writeLine($credentials->apiKey() !== null

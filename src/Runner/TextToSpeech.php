@@ -14,7 +14,7 @@ use PhpLovesAi\Filesystem\Path;
 
 /**
  * Reads text aloud into an audio file with transformers models pulled into the project, through the runner installed
- * by `vendor/bin/setup text-to-speech`.
+ * by `vendor/bin/loves-ai setup text-to-speech`.
  *
  *     $file = (new TextToSpeech())->speak('facebook/mms-tts-eng', 'Hello from PHP!', __DIR__ . '/hello.wav');
  *

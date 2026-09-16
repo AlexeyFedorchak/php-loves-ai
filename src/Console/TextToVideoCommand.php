@@ -13,7 +13,7 @@ use PhpLovesAi\Filesystem\LocalStorage;
 use PhpLovesAi\Runner\TextToVideo;
 
 /**
- * CLI entry point behind `vendor/bin/text-to-video`: generates a video from a prompt via TextToVideo.
+ * CLI entry point behind `vendor/bin/loves-ai text-to-video`: generates a video from a prompt via TextToVideo.
  */
 final class TextToVideoCommand extends Command
 {
@@ -31,10 +31,12 @@ final class TextToVideoCommand extends Command
 
     protected const NAME = 'text-to-video';
 
+    protected const DESCRIPTION = 'Generate a video from a text prompt';
+
     protected const OPTIONS = ['output', 'negative-prompt', 'frames', 'fps', 'steps', 'guidance', 'width', 'height', 'seed', 'device', 'log-file'];
 
     protected const USAGE = <<<'TXT'
-        Usage: text-to-video <model> <prompt> [options]
+        Usage: vendor/bin/loves-ai text-to-video <model> <prompt> [options]
 
         Generate a video from a text prompt with a diffusers pipeline pulled into .local/models in the project root.
 
@@ -135,8 +137,8 @@ final class TextToVideoCommand extends Command
     protected function hintFor(PhpLovesAiException $e): ?string
     {
         return match (true) {
-            $e instanceof ModelNotFoundException => "Pull it first with: vendor/bin/pull {$e->model}",
-            $e instanceof UnsupportedModelException => 'To try one: vendor/bin/pull ' . TextToVideo::EXAMPLE_MODEL,
+            $e instanceof ModelNotFoundException => "Pull it first with: vendor/bin/loves-ai pull {$e->model}",
+            $e instanceof UnsupportedModelException => 'To try one: vendor/bin/loves-ai pull ' . TextToVideo::EXAMPLE_MODEL,
             default => parent::hintFor($e),
         };
     }

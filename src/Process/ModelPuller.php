@@ -16,7 +16,7 @@ use PhpLovesAi\HuggingFace\Credentials;
 use Symfony\Component\Process\Process;
 
 /**
- * Runs the puller installed by `vendor/bin/setup` to download models from the Hugging Face Hub into the project's
+ * Runs the puller installed by `vendor/bin/loves-ai setup` to download models from the Hugging Face Hub into the project's
  * models directory, <project root>/.local/models/<model id>, where the runners find them.
  *
  * Public models are pulled without an API key. Private and gated models need the key saved in the project's

@@ -53,18 +53,18 @@ final class SetupCommandTest extends TestCase
         self::assertFalse($this->storage->isInstalled(Tool::TextToImage));
         self::assertSame(
             '🧰 Setting up php-loves-ai (v1.0.0) for ' . Platform::current() . "\n"
-            . "💡 No Hugging Face API key saved: only public models can be pulled. Add one any time with: vendor/bin/setup --token=<your Hugging Face API key>\n"
+            . "💡 No Hugging Face API key saved: only public models can be pulled. Add one any time with: vendor/bin/loves-ai setup --token=<your Hugging Face API key>\n"
             . "✅ The puller is installed at {$this->storage->binaryPath(Tool::Puller)}\n"
             . "🎉 All set! Happy hacking 🍪\n"
-            . "👉 Pull a model: vendor/bin/pull <model>\n"
-            . "💡 Want to generate images too? Run: vendor/bin/setup text-to-image (a few hundred MB)\n"
-            . "💡 Want to generate text too? Run: vendor/bin/setup text-to-text (a few hundred MB)\n"
-            . "💡 Want to describe images too? Run: vendor/bin/setup image-to-text (a few hundred MB)\n"
-            . "💡 Want to transcribe audio too? Run: vendor/bin/setup speech-to-text (a few hundred MB)\n"
-            . "💡 Want to read text aloud too? Run: vendor/bin/setup text-to-speech (a few hundred MB)\n"
-            . "💡 Want to enlarge or redraw images too? Run: vendor/bin/setup image-to-image (a few hundred MB)\n"
-            . "💡 Want to generate videos too? Run: vendor/bin/setup text-to-video (a few hundred MB)\n"
-            . "💡 Want to animate images too? Run: vendor/bin/setup image-to-video (a few hundred MB)\n",
+            . "👉 Pull a model: vendor/bin/loves-ai pull <model>\n"
+            . "💡 Want to generate images too? Run: vendor/bin/loves-ai setup text-to-image (a few hundred MB)\n"
+            . "💡 Want to generate text too? Run: vendor/bin/loves-ai setup text-to-text (a few hundred MB)\n"
+            . "💡 Want to describe images too? Run: vendor/bin/loves-ai setup image-to-text (a few hundred MB)\n"
+            . "💡 Want to transcribe audio too? Run: vendor/bin/loves-ai setup speech-to-text (a few hundred MB)\n"
+            . "💡 Want to read text aloud too? Run: vendor/bin/loves-ai setup text-to-speech (a few hundred MB)\n"
+            . "💡 Want to enlarge or redraw images too? Run: vendor/bin/loves-ai setup image-to-image (a few hundred MB)\n"
+            . "💡 Want to generate videos too? Run: vendor/bin/loves-ai setup text-to-video (a few hundred MB)\n"
+            . "💡 Want to animate images too? Run: vendor/bin/loves-ai setup image-to-video (a few hundred MB)\n",
             $this->contents($this->stdout),
         );
         self::assertSame('', $this->contents($this->stderr));
@@ -88,16 +88,16 @@ final class SetupCommandTest extends TestCase
         self::assertTrue($this->storage->isInstalled(Tool::TextToImage));
         self::assertTrue($this->storage->isInstalled(Tool::TextToText));
         self::assertStringContainsString("✅ The text-to-text runner is installed at {$this->storage->binaryPath(Tool::TextToText)}", $this->contents($this->stdout));
-        self::assertStringContainsString('👉 Generate text: vendor/bin/text-to-text <model> "<prompt>"', $this->contents($this->stdout));
-        self::assertStringContainsString('👉 Describe an image: vendor/bin/image-to-text <model> <image>', $this->contents($this->stdout));
-        self::assertStringContainsString('👉 Transcribe audio: vendor/bin/speech-to-text <model> <audio>', $this->contents($this->stdout));
-        self::assertStringContainsString('👉 Read text aloud: vendor/bin/text-to-speech <model> "<text>"', $this->contents($this->stdout));
-        self::assertStringContainsString('👉 Transform an image: vendor/bin/image-to-image <model> <image>', $this->contents($this->stdout));
-        self::assertStringContainsString('👉 Generate a video: vendor/bin/text-to-video <model> "<prompt>"', $this->contents($this->stdout));
-        self::assertStringContainsString('👉 Animate an image: vendor/bin/image-to-video <model> <image>', $this->contents($this->stdout));
+        self::assertStringContainsString('👉 Generate text: vendor/bin/loves-ai text-to-text <model> "<prompt>"', $this->contents($this->stdout));
+        self::assertStringContainsString('👉 Describe an image: vendor/bin/loves-ai image-to-text <model> <image>', $this->contents($this->stdout));
+        self::assertStringContainsString('👉 Transcribe audio: vendor/bin/loves-ai speech-to-text <model> <audio>', $this->contents($this->stdout));
+        self::assertStringContainsString('👉 Read text aloud: vendor/bin/loves-ai text-to-speech <model> "<text>"', $this->contents($this->stdout));
+        self::assertStringContainsString('👉 Transform an image: vendor/bin/loves-ai image-to-image <model> <image>', $this->contents($this->stdout));
+        self::assertStringContainsString('👉 Generate a video: vendor/bin/loves-ai text-to-video <model> "<prompt>"', $this->contents($this->stdout));
+        self::assertStringContainsString('👉 Animate an image: vendor/bin/loves-ai image-to-video <model> <image>', $this->contents($this->stdout));
         self::assertStringNotContainsString('💡 Want to', $this->contents($this->stdout));
         self::assertStringContainsString("✅ The text-to-image runner is installed at {$this->storage->binaryPath(Tool::TextToImage)}", $this->contents($this->stdout));
-        self::assertStringContainsString('👉 Generate an image: vendor/bin/text-to-image <model> "<prompt>"', $this->contents($this->stdout));
+        self::assertStringContainsString('👉 Generate an image: vendor/bin/loves-ai text-to-image <model> "<prompt>"', $this->contents($this->stdout));
     }
 
     public function testSkipsInstalledBinariesUnlessForced(): void

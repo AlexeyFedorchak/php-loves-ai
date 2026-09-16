@@ -13,7 +13,7 @@ use PhpLovesAi\Filesystem\LocalStorage;
 use PhpLovesAi\Runner\ImageToVideo;
 
 /**
- * CLI entry point behind `vendor/bin/image-to-video`: animates an image into a video via ImageToVideo.
+ * CLI entry point behind `vendor/bin/loves-ai image-to-video`: animates an image into a video via ImageToVideo.
  */
 final class ImageToVideoCommand extends Command
 {
@@ -31,10 +31,12 @@ final class ImageToVideoCommand extends Command
 
     protected const NAME = 'image-to-video';
 
+    protected const DESCRIPTION = 'Animate an image into a video';
+
     protected const OPTIONS = ['output', 'prompt', 'negative-prompt', 'frames', 'fps', 'steps', 'guidance', 'width', 'height', 'seed', 'device', 'log-file'];
 
     protected const USAGE = <<<'TXT'
-        Usage: image-to-video <model> <image> [options]
+        Usage: vendor/bin/loves-ai image-to-video <model> <image> [options]
 
         Animate an image into a video with a diffusers pipeline pulled into .local/models in the project root.
 
@@ -139,8 +141,8 @@ final class ImageToVideoCommand extends Command
     protected function hintFor(PhpLovesAiException $e): ?string
     {
         return match (true) {
-            $e instanceof ModelNotFoundException => "Pull it first with: vendor/bin/pull {$e->model}",
-            $e instanceof UnsupportedModelException => 'To try one: vendor/bin/pull ' . ImageToVideo::EXAMPLE_MODEL,
+            $e instanceof ModelNotFoundException => "Pull it first with: vendor/bin/loves-ai pull {$e->model}",
+            $e instanceof UnsupportedModelException => 'To try one: vendor/bin/loves-ai pull ' . ImageToVideo::EXAMPLE_MODEL,
             default => parent::hintFor($e),
         };
     }

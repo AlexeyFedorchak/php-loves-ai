@@ -75,7 +75,7 @@ final class ImageToVideoCommandTest extends TestCase
     public function testShowsHelp(): void
     {
         self::assertSame(ImageToVideoCommand::EXIT_OK, $this->runCommand(['--help']));
-        self::assertStringContainsString('Usage: image-to-video <model> <image> [options]', $this->contents($this->stdout));
+        self::assertStringContainsString('Usage: vendor/bin/loves-ai image-to-video <model> <image> [options]', $this->contents($this->stdout));
     }
 
     /**
@@ -86,7 +86,7 @@ final class ImageToVideoCommandTest extends TestCase
     {
         self::assertSame(ImageToVideoCommand::EXIT_USAGE, $this->runCommand($args));
         self::assertStringContainsString($expectedError, $this->contents($this->stderr));
-        self::assertStringContainsString("Run 'image-to-video --help' for usage.", $this->contents($this->stderr));
+        self::assertStringContainsString("Run 'vendor/bin/loves-ai image-to-video --help' for usage.", $this->contents($this->stderr));
     }
 
     /**
@@ -110,7 +110,7 @@ final class ImageToVideoCommandTest extends TestCase
 
         $stderr = $this->contents($this->stderr);
         self::assertStringStartsWith('Error: org/sd cannot animate an image: it generates still images (StableDiffusionPipeline); use it with image-to-image.', $stderr);
-        self::assertStringEndsWith("\nTo try one: vendor/bin/pull stabilityai/stable-video-diffusion-img2vid-xt\n", $stderr);
+        self::assertStringEndsWith("\nTo try one: vendor/bin/loves-ai pull stabilityai/stable-video-diffusion-img2vid-xt\n", $stderr);
         self::assertSame('', $this->contents($this->stdout), 'No intro is shown when the run cannot start.');
     }
 
@@ -118,7 +118,7 @@ final class ImageToVideoCommandTest extends TestCase
     {
         self::assertSame(ImageToVideoCommand::EXIT_FAILURE, $this->runCommand(['org/missing', $this->image]));
 
-        self::assertStringEndsWith("Pull it first with: vendor/bin/pull org/missing\n", $this->contents($this->stderr));
+        self::assertStringEndsWith("Pull it first with: vendor/bin/loves-ai pull org/missing\n", $this->contents($this->stderr));
     }
 
     public function testReportsFailedRunWithDebugHint(): void
@@ -146,7 +146,7 @@ final class ImageToVideoCommandTest extends TestCase
 
         self::assertSame(ImageToVideoCommand::EXIT_FAILURE, $exitCode);
         self::assertSame(
-            "Error: The image-to-video runner is not installed yet.\nRun vendor/bin/setup image-to-video first to download it 🧰\n",
+            "Error: The image-to-video runner is not installed yet.\nRun vendor/bin/loves-ai setup image-to-video first to download it 🧰\n",
             $this->contents($this->stderr),
         );
     }

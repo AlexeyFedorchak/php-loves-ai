@@ -13,7 +13,7 @@ use PhpLovesAi\Filesystem\LocalStorage;
 use PhpLovesAi\Runner\TextToImage;
 
 /**
- * CLI entry point behind `vendor/bin/text-to-image`: generates one image via TextToImage.
+ * CLI entry point behind `vendor/bin/loves-ai text-to-image`: generates one image via TextToImage.
  */
 final class TextToImageCommand extends Command
 {
@@ -31,12 +31,14 @@ final class TextToImageCommand extends Command
 
     protected const NAME = 'text-to-image';
 
+    protected const DESCRIPTION = 'Generate an image from a text prompt';
+
     protected const OPTIONS = [
         'output', 'negative-prompt', 'steps', 'guidance', 'width', 'height', 'seed', 'device', 'log-file',
     ];
 
     protected const USAGE = <<<'TXT'
-        Usage: text-to-image <model> <prompt> [options]
+        Usage: vendor/bin/loves-ai text-to-image <model> <prompt> [options]
 
         Generate an image from a text prompt with a diffusion model pulled into .local/models in the project root.
 
@@ -131,8 +133,8 @@ final class TextToImageCommand extends Command
     protected function hintFor(PhpLovesAiException $e): ?string
     {
         return match (true) {
-            $e instanceof ModelNotFoundException => "Pull it first with: vendor/bin/pull {$e->model}",
-            $e instanceof UnsupportedModelException => 'To try one: vendor/bin/pull ' . TextToImage::EXAMPLE_MODEL,
+            $e instanceof ModelNotFoundException => "Pull it first with: vendor/bin/loves-ai pull {$e->model}",
+            $e instanceof UnsupportedModelException => 'To try one: vendor/bin/loves-ai pull ' . TextToImage::EXAMPLE_MODEL,
             default => parent::hintFor($e),
         };
     }

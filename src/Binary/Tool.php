@@ -31,24 +31,24 @@ enum Tool: string
     public function setupCommand(): string
     {
         return match ($this) {
-            self::Puller => 'vendor/bin/setup',
-            default => "vendor/bin/setup {$this->value}",
+            self::Puller => 'vendor/bin/loves-ai setup',
+            default => "vendor/bin/loves-ai setup {$this->value}",
         };
     }
 
-    /** What the binary lets users do, and how, e.g. 'Generate an image: vendor/bin/text-to-image <model> "<prompt>"'. */
+    /** What the binary lets users do, and how, e.g. 'Generate an image: vendor/bin/loves-ai text-to-image <model> "<prompt>"'. */
     public function usage(): string
     {
         return match ($this) {
-            self::Puller => 'Pull a model: vendor/bin/pull <model>',
-            self::TextToImage => 'Generate an image: vendor/bin/text-to-image <model> "<prompt>"',
-            self::TextToText => 'Generate text: vendor/bin/text-to-text <model> "<prompt>"',
-            self::ImageToText => 'Describe an image: vendor/bin/image-to-text <model> <image>',
-            self::SpeechToText => 'Transcribe audio: vendor/bin/speech-to-text <model> <audio>',
-            self::TextToSpeech => 'Read text aloud: vendor/bin/text-to-speech <model> "<text>"',
-            self::ImageToImage => 'Transform an image: vendor/bin/image-to-image <model> <image>',
-            self::TextToVideo => 'Generate a video: vendor/bin/text-to-video <model> "<prompt>"',
-            self::ImageToVideo => 'Animate an image: vendor/bin/image-to-video <model> <image>',
+            self::Puller => 'Pull a model: vendor/bin/loves-ai pull <model>',
+            self::TextToImage => 'Generate an image: vendor/bin/loves-ai text-to-image <model> "<prompt>"',
+            self::TextToText => 'Generate text: vendor/bin/loves-ai text-to-text <model> "<prompt>"',
+            self::ImageToText => 'Describe an image: vendor/bin/loves-ai image-to-text <model> <image>',
+            self::SpeechToText => 'Transcribe audio: vendor/bin/loves-ai speech-to-text <model> <audio>',
+            self::TextToSpeech => 'Read text aloud: vendor/bin/loves-ai text-to-speech <model> "<text>"',
+            self::ImageToImage => 'Transform an image: vendor/bin/loves-ai image-to-image <model> <image>',
+            self::TextToVideo => 'Generate a video: vendor/bin/loves-ai text-to-video <model> "<prompt>"',
+            self::ImageToVideo => 'Animate an image: vendor/bin/loves-ai image-to-video <model> <image>',
         };
     }
 

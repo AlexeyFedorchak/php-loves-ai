@@ -13,7 +13,7 @@ use PhpLovesAi\Filesystem\LocalStorage;
 use PhpLovesAi\Runner\SpeechToText;
 
 /**
- * CLI entry point behind `vendor/bin/speech-to-text`: transcribes an audio or video file via SpeechToText and prints
+ * CLI entry point behind `vendor/bin/loves-ai speech-to-text`: transcribes an audio or video file via SpeechToText and prints
  * the transcript.
  */
 final class SpeechToTextCommand extends Command
@@ -32,12 +32,14 @@ final class SpeechToTextCommand extends Command
 
     protected const NAME = 'speech-to-text';
 
+    protected const DESCRIPTION = 'Transcribe speech in an audio or video file';
+
     protected const OPTIONS = ['language', 'device', 'log-file'];
 
     protected const FLAGS = ['translate', 'timestamps'];
 
     protected const USAGE = <<<'TXT'
-        Usage: speech-to-text <model> <audio> [options]
+        Usage: vendor/bin/loves-ai speech-to-text <model> <audio> [options]
 
         Transcribe speech in an audio or video file with a transformers model pulled into .local/models in the project
         root. WAV, MP3, M4A, FLAC, OGG and the audio track of videos work, at any length.
@@ -124,8 +126,8 @@ final class SpeechToTextCommand extends Command
     protected function hintFor(PhpLovesAiException $e): ?string
     {
         return match (true) {
-            $e instanceof ModelNotFoundException => "Pull it first with: vendor/bin/pull {$e->model}",
-            $e instanceof UnsupportedModelException => 'To try one: vendor/bin/pull ' . SpeechToText::EXAMPLE_MODEL,
+            $e instanceof ModelNotFoundException => "Pull it first with: vendor/bin/loves-ai pull {$e->model}",
+            $e instanceof UnsupportedModelException => 'To try one: vendor/bin/loves-ai pull ' . SpeechToText::EXAMPLE_MODEL,
             default => parent::hintFor($e),
         };
     }

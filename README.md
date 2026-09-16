@@ -12,7 +12,7 @@ The Composer package itself is tiny and contains only PHP code. The heavy parts 
    locally saved model and runs it; within a task one runner serves many models (diffusers and transformers pick the
    right architecture from the model's own config), while tasks get separate binaries because their dependencies differ.
 3. The binaries are built per platform by GitHub Actions and attached to each GitHub release.
-   `vendor/bin/setup` downloads the ones matching the current OS; the other commands find them automatically.
+   `vendor/bin/loves-ai setup` downloads the ones matching the current OS; the other commands find them automatically.
 4. The user chooses which models to pull; weights are never shipped through Composer.
 5. PHP code calls the binaries via Symfony Process and exposes a fluent, native-feeling API.
 
@@ -29,15 +29,15 @@ Supported platforms: macOS arm64, Linux x86_64, Linux arm64, Windows x86_64.
 
 ```bash
 composer require php-loves-ai/multimodal-ai-runner
-vendor/bin/setup                  # downloads the puller (~17 MB) and asks for your Hugging Face API key
-vendor/bin/setup text-to-image    # optional: the image generation runner (a few hundred MB)
-vendor/bin/setup text-to-text     # optional: the text generation runner (a few hundred MB)
-vendor/bin/setup image-to-text    # optional: the image description runner (a few hundred MB)
-vendor/bin/setup speech-to-text   # optional: the speech transcription runner (a few hundred MB)
-vendor/bin/setup text-to-speech   # optional: the speech synthesis runner (a few hundred MB)
-vendor/bin/setup image-to-image   # optional: the image enlarging and redrawing runner (a few hundred MB)
-vendor/bin/setup text-to-video    # optional: the video generation runner (a few hundred MB)
-vendor/bin/setup image-to-video   # optional: the image animation runner (a few hundred MB)
+vendor/bin/loves-ai setup                  # downloads the puller (~17 MB) and asks for your Hugging Face API key
+vendor/bin/loves-ai setup text-to-image    # optional: the image generation runner (a few hundred MB)
+vendor/bin/loves-ai setup text-to-text     # optional: the text generation runner (a few hundred MB)
+vendor/bin/loves-ai setup image-to-text    # optional: the image description runner (a few hundred MB)
+vendor/bin/loves-ai setup speech-to-text   # optional: the speech transcription runner (a few hundred MB)
+vendor/bin/loves-ai setup text-to-speech   # optional: the speech synthesis runner (a few hundred MB)
+vendor/bin/loves-ai setup image-to-image   # optional: the image enlarging and redrawing runner (a few hundred MB)
+vendor/bin/loves-ai setup text-to-video    # optional: the video generation runner (a few hundred MB)
+vendor/bin/loves-ai setup image-to-video   # optional: the image animation runner (a few hundred MB)
 ```
 
 ```
@@ -49,8 +49,36 @@ vendor/bin/setup image-to-video   # optional: the image animation runner (a few 
 ✅ Saved your Hugging Face API key to /var/www/my-app/.local/huggingface/credentials.json
 ✅ The puller is installed at /var/www/my-app/.local/runners/puller-darwin-arm64
 🎉 All set! Happy hacking 🍪
-👉 Pull a model: vendor/bin/pull <model>
+👉 Pull a model: vendor/bin/loves-ai pull <model>
 ```
+
+### Commands
+
+Everything runs through one command, `vendor/bin/loves-ai`, so nothing in `vendor/bin` clashes with other packages.
+Running it without arguments lists the tasks and marks the runners that are installed:
+
+```
+🧰 php-loves-ai v0.5.0 — run small AI models locally, without installing Python
+
+Usage: vendor/bin/loves-ai <command> [arguments] [options]
+
+     setup           Download the runner binaries for this computer
+     pull            Pull a model from the Hugging Face Hub
+
+Tasks (✅ = runner installed, run `setup <task>` for the others):
+  ✅ text-to-image   Generate an image from a text prompt
+     image-to-image  Enlarge an image, or redraw it following a prompt
+     text-to-video   Generate a video from a text prompt
+     image-to-video  Animate an image into a video
+  ✅ text-to-text    Generate text: answer a prompt or continue it
+     image-to-text   Describe an image, or answer a question about it
+     speech-to-text  Transcribe speech in an audio or video file
+     text-to-speech  Read text aloud into an audio file
+
+Run 'vendor/bin/loves-ai <command> --help' for a command's arguments and options.
+```
+
+`vendor/bin/loves-ai --version` prints the installed package version.
 
 ### Hugging Face API key
 
@@ -59,7 +87,7 @@ A key is optional. Public models are pulled without one; private and gated model
 
 `setup` asks for it once and saves the answer in `.local/huggingface/credentials.json`, readable only by its owner.
 Pressing Enter is remembered too, so `setup` does not ask again. To save or replace a key later, run
-`vendor/bin/setup --token=hf_...` or pass `--token=hf_...` to `pull`. When there is no terminal to ask in (Docker
+`vendor/bin/loves-ai setup --token=hf_...` or pass `--token=hf_...` to `pull`. When there is no terminal to ask in (Docker
 builds, CI, deploy scripts), `setup` skips the question; pass `--token` there if you need a key.
 
 The key is never read from environment variables, so every process running the project uses the same one.
@@ -70,8 +98,8 @@ Everything is stored inside your project, next to `vendor/`, in one fixed place:
 
 ```
 <project root>/.local/
-├── models/        models pulled by `vendor/bin/pull`, as models/<model id>
-├── runners/       binaries installed by `vendor/bin/setup`
+├── models/        models pulled by `vendor/bin/loves-ai pull`, as models/<model id>
+├── runners/       binaries installed by `vendor/bin/loves-ai setup`
 └── huggingface/   credentials.json with your Hugging Face API key
 ```
 
@@ -85,7 +113,7 @@ read and execute access to `.local`.
 your API key are never committed. Add `.local/` to `.dockerignore` if you build images from the project directory.
 
 `setup --force` re-downloads, and `setup --debug` shows the URLs and paths used. After upgrading the package, run
-`vendor/bin/setup --force` (plus `setup text-to-image --force` if you use it) to get the matching binaries.
+`vendor/bin/loves-ai setup --force` (plus `setup text-to-image --force` if you use it) to get the matching binaries.
 
 Running a command before its binary is installed fails with `The puller is not installed yet.` and a hint to run
 `setup`.
@@ -98,7 +126,7 @@ Public models need no API key. Private and gated models use the key saved in the
 ### From the command line
 
 ```bash
-vendor/bin/pull openai-community/gpt2 [--revision=main] [--token=hf_...] [--log-file=PATH] [--debug]
+vendor/bin/loves-ai pull openai-community/gpt2 [--revision=main] [--token=hf_...] [--log-file=PATH] [--debug]
 ```
 
 ```
@@ -113,7 +141,7 @@ When Hugging Face refuses a model, `pull` explains why and what to do:
 
 ```
 Error: meta-llama/Llama-3.2-1B is not available: it is a gated model, which needs a Hugging Face API key.
-Re-run with your key: vendor/bin/pull meta-llama/Llama-3.2-1B --token=<your Hugging Face API key> (create one at https://huggingface.co/settings/tokens)
+Re-run with your key: vendor/bin/loves-ai pull meta-llama/Llama-3.2-1B --token=<your Hugging Face API key> (create one at https://huggingface.co/settings/tokens)
 ```
 
 `--token` saves the key for next time. A gated model also needs its terms accepted on its Hugging Face page, with the
@@ -122,7 +150,7 @@ account the key belongs to.
 Pulls one model at a time into `.local/models/<model id>`. The puller's own output is hidden unless `--debug` is given.
 To keep that output, set a log file — each run is appended to it with a timestamp, the puller's output and the
 outcome. Output is colored on terminals; set `NO_COLOR=1` to disable colors.
-Exit codes: `0` success, `1` pull failed, `2` invalid usage. Run `vendor/bin/pull --help` for details.
+Exit codes: `0` success, `1` pull failed, `2` invalid usage. Run `vendor/bin/loves-ai pull --help` for details.
 
 Defaults come from `config/pull.php`:
 
@@ -169,8 +197,8 @@ Then:
 ### From the command line
 
 ```bash
-vendor/bin/pull stabilityai/sd-turbo
-vendor/bin/text-to-image stabilityai/sd-turbo "a cozy cat by the fireplace" --steps=1 --guidance=0
+vendor/bin/loves-ai pull stabilityai/sd-turbo
+vendor/bin/loves-ai text-to-image stabilityai/sd-turbo "a cozy cat by the fireplace" --steps=1 --guidance=0
 ```
 
 ```
@@ -231,8 +259,8 @@ Ollama), ONNX-only repositories, LoRA adapters, image models, and models that ne
 ### From the command line
 
 ```bash
-vendor/bin/pull Qwen/Qwen2.5-0.5B-Instruct
-vendor/bin/text-to-text Qwen/Qwen2.5-0.5B-Instruct "Write a haiku about PHP." --system="You are a poet."
+vendor/bin/loves-ai pull Qwen/Qwen2.5-0.5B-Instruct
+vendor/bin/loves-ai text-to-text Qwen/Qwen2.5-0.5B-Instruct "Write a haiku about PHP." --system="You are a poet."
 ```
 
 ```
@@ -294,8 +322,8 @@ GGUF files, ONNX-only repositories and models that need their own Python code (s
 ### From the command line
 
 ```bash
-vendor/bin/pull HuggingFaceTB/SmolVLM-256M-Instruct
-vendor/bin/image-to-text HuggingFaceTB/SmolVLM-256M-Instruct photo.jpg "What are the animals doing?"
+vendor/bin/loves-ai pull HuggingFaceTB/SmolVLM-256M-Instruct
+vendor/bin/loves-ai image-to-text HuggingFaceTB/SmolVLM-256M-Instruct photo.jpg "What are the animals doing?"
 ```
 
 ```
@@ -357,9 +385,9 @@ including whisper.cpp (GGML) and faster-whisper (CTranslate2) conversions, which
 ### From the command line
 
 ```bash
-vendor/bin/pull openai/whisper-tiny
-vendor/bin/speech-to-text openai/whisper-tiny interview.m4a
-vendor/bin/speech-to-text openai/whisper-tiny interview.m4a --timestamps
+vendor/bin/loves-ai pull openai/whisper-tiny
+vendor/bin/loves-ai speech-to-text openai/whisper-tiny interview.m4a
+vendor/bin/loves-ai speech-to-text openai/whisper-tiny interview.m4a --timestamps
 ```
 
 ```
@@ -423,8 +451,8 @@ frame size, and always generate in a queue job.
 ### From the command line
 
 ```bash
-vendor/bin/pull Wan-AI/Wan2.1-T2V-1.3B-Diffusers
-vendor/bin/text-to-video Wan-AI/Wan2.1-T2V-1.3B-Diffusers "a cat walking through tall grass" --frames=33 --output=cat.mp4
+vendor/bin/loves-ai pull Wan-AI/Wan2.1-T2V-1.3B-Diffusers
+vendor/bin/loves-ai text-to-video Wan-AI/Wan2.1-T2V-1.3B-Diffusers "a cat walking through tall grass" --frames=33 --output=cat.mp4
 ```
 
 ```
@@ -487,8 +515,8 @@ The same warning as for text-to-video applies: these models are large and slow, 
 ### From the command line
 
 ```bash
-vendor/bin/pull stabilityai/stable-video-diffusion-img2vid-xt
-vendor/bin/image-to-video stabilityai/stable-video-diffusion-img2vid-xt photo.jpg --output=clip.mp4
+vendor/bin/loves-ai pull stabilityai/stable-video-diffusion-img2vid-xt
+vendor/bin/loves-ai image-to-video stabilityai/stable-video-diffusion-img2vid-xt photo.jpg --output=clip.mp4
 ```
 
 ```
@@ -537,11 +565,11 @@ tells them apart by the model's own files:
 ### From the command line
 
 ```bash
-vendor/bin/pull caidas/swin2SR-classical-sr-x2-64
-vendor/bin/image-to-image caidas/swin2SR-classical-sr-x2-64 photo.jpg --output=photo-2x.png
+vendor/bin/loves-ai pull caidas/swin2SR-classical-sr-x2-64
+vendor/bin/loves-ai image-to-image caidas/swin2SR-classical-sr-x2-64 photo.jpg --output=photo-2x.png
 
-vendor/bin/pull stabilityai/sd-turbo
-vendor/bin/image-to-image stabilityai/sd-turbo photo.jpg --prompt="a watercolor painting" --strength=0.6 --steps=2 --guidance=0
+vendor/bin/loves-ai pull stabilityai/sd-turbo
+vendor/bin/loves-ai image-to-image stabilityai/sd-turbo photo.jpg --prompt="a watercolor painting" --strength=0.6 --steps=2 --guidance=0
 ```
 
 ```
@@ -614,8 +642,8 @@ models given to the wrong runner.
 ### From the command line
 
 ```bash
-vendor/bin/pull facebook/mms-tts-eng
-vendor/bin/text-to-speech facebook/mms-tts-eng "PHP loves AI, and now it can speak." --output=hello.wav
+vendor/bin/loves-ai pull facebook/mms-tts-eng
+vendor/bin/loves-ai text-to-speech facebook/mms-tts-eng "PHP loves AI, and now it can speak." --output=hello.wav
 ```
 
 ```
@@ -691,7 +719,7 @@ To test `setup` against local assets, serve `python/release` over HTTP and set `
 ## Structure
 
 ```
-bin/                 CLI scripts exposed via vendor/bin (setup, pull, and one per runner)
+bin/                 loves-ai, the only script exposed via vendor/bin
 config/              Package config (pull.php and one file per runner)
 python/              Python sources compiled into standalone binaries (not shipped via Composer)
   puller/            Pulls models from Hugging Face and saves them locally
@@ -708,7 +736,7 @@ src/
   Enum/              Model registry
   Binary/            Platform detection and installing (Installer) the prebuilt binaries
   Config/            Config loading and validation
-  Console/           CLI commands behind the bin/ scripts
+  Console/           Application (the loves-ai command) and one Command per subcommand
   Filesystem/        LocalStorage (the fixed paths inside .local) and path helpers
   HuggingFace/       Credentials: the optional API key saved in .local/huggingface/credentials.json
   Process/           PHP wrapper that invokes the puller binary (ModelPuller)

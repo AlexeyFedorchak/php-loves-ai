@@ -13,7 +13,7 @@ use PhpLovesAi\Filesystem\LocalStorage;
 use PhpLovesAi\Runner\TextToSpeech;
 
 /**
- * CLI entry point behind `vendor/bin/text-to-speech`: reads text aloud into an audio file via TextToSpeech.
+ * CLI entry point behind `vendor/bin/loves-ai text-to-speech`: reads text aloud into an audio file via TextToSpeech.
  */
 final class TextToSpeechCommand extends Command
 {
@@ -31,10 +31,12 @@ final class TextToSpeechCommand extends Command
 
     protected const NAME = 'text-to-speech';
 
+    protected const DESCRIPTION = 'Read text aloud into an audio file';
+
     protected const OPTIONS = ['output', 'voice', 'speed', 'seed', 'device', 'log-file'];
 
     protected const USAGE = <<<'TXT'
-        Usage: text-to-speech <model> <text> [options]
+        Usage: vendor/bin/loves-ai text-to-speech <model> <text> [options]
 
         Read text aloud into an audio file with a transformers model pulled into .local/models in the project root.
 
@@ -121,8 +123,8 @@ final class TextToSpeechCommand extends Command
     protected function hintFor(PhpLovesAiException $e): ?string
     {
         return match (true) {
-            $e instanceof ModelNotFoundException => "Pull it first with: vendor/bin/pull {$e->model}",
-            $e instanceof UnsupportedModelException => 'To try one: vendor/bin/pull ' . TextToSpeech::EXAMPLE_MODEL,
+            $e instanceof ModelNotFoundException => "Pull it first with: vendor/bin/loves-ai pull {$e->model}",
+            $e instanceof UnsupportedModelException => 'To try one: vendor/bin/loves-ai pull ' . TextToSpeech::EXAMPLE_MODEL,
             default => parent::hintFor($e),
         };
     }

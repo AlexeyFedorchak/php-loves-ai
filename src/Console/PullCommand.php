@@ -14,7 +14,7 @@ use PhpLovesAi\HuggingFace\Credentials;
 use PhpLovesAi\Process\ModelPuller;
 
 /**
- * CLI entry point behind `vendor/bin/pull`: pulls a single model via ModelPuller.
+ * CLI entry point behind `vendor/bin/loves-ai pull`: pulls a single model via ModelPuller.
  */
 final class PullCommand extends Command
 {
@@ -33,10 +33,12 @@ final class PullCommand extends Command
 
     protected const NAME = 'pull';
 
+    protected const DESCRIPTION = 'Pull a model from the Hugging Face Hub';
+
     protected const OPTIONS = ['revision', 'token', 'log-file'];
 
     protected const USAGE = <<<'TXT'
-        Usage: pull <model> [options]
+        Usage: vendor/bin/loves-ai pull <model> [options]
 
         Pull a model from the Hugging Face Hub into .local/models/<model> in the project root.
 
@@ -110,12 +112,12 @@ final class PullCommand extends Command
 
     protected function hintFor(PhpLovesAiException $e): ?string
     {
-        $retryWithKey = 'Re-run with your key: vendor/bin/pull %s --token=<your Hugging Face API key> (create one at ' . Credentials::TOKENS_URL . ')';
+        $retryWithKey = 'Re-run with your key: vendor/bin/loves-ai pull %s --token=<your Hugging Face API key> (create one at ' . Credentials::TOKENS_URL . ')';
 
         return match (true) {
             $e instanceof ModelAccessDeniedException && !$e->apiKeyUsed => sprintf($retryWithKey, $e->model),
             $e instanceof ModelAccessDeniedException && $e->reason === ModelAccessDeniedException::NOT_FOUND => "Check the model id at https://huggingface.co/{$e->model}, and that your key's account can open it.",
-            $e instanceof MissingApiKeyException => sprintf($retryWithKey, '<model>') . ', or update the puller with: vendor/bin/setup --force',
+            $e instanceof MissingApiKeyException => sprintf($retryWithKey, '<model>') . ', or update the puller with: vendor/bin/loves-ai setup --force',
             default => parent::hintFor($e),
         };
     }

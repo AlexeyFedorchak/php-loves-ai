@@ -14,7 +14,7 @@ use PhpLovesAi\Filesystem\Path;
 
 /**
  * Generates images with diffusion models pulled into the project, through the runner installed by
- * `vendor/bin/setup text-to-image`.
+ * `vendor/bin/loves-ai setup text-to-image`.
  *
  *     $image = (new TextToImage())->generate('stabilityai/sd-turbo', 'a cozy cat', __DIR__ . '/cat.png');
  *

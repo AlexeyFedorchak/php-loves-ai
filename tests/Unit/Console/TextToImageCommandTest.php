@@ -70,7 +70,7 @@ final class TextToImageCommandTest extends TestCase
     public function testShowsHelp(): void
     {
         self::assertSame(TextToImageCommand::EXIT_OK, $this->runCommand(['--help']));
-        self::assertStringContainsString('Usage: text-to-image <model> <prompt> [options]', $this->contents($this->stdout));
+        self::assertStringContainsString('Usage: vendor/bin/loves-ai text-to-image <model> <prompt> [options]', $this->contents($this->stdout));
     }
 
     /**
@@ -81,7 +81,7 @@ final class TextToImageCommandTest extends TestCase
     {
         self::assertSame(TextToImageCommand::EXIT_USAGE, $this->runCommand($args));
         self::assertStringContainsString($expectedError, $this->contents($this->stderr));
-        self::assertStringContainsString("Run 'text-to-image --help' for usage.", $this->contents($this->stderr));
+        self::assertStringContainsString("Run 'vendor/bin/loves-ai text-to-image --help' for usage.", $this->contents($this->stderr));
     }
 
     /**
@@ -103,7 +103,7 @@ final class TextToImageCommandTest extends TestCase
 
         self::assertSame(
             "Error: Model org/missing not found at {$this->project->root}/.local/models/org/missing.\n"
-            . "Pull it first with: vendor/bin/pull org/missing\n",
+            . "Pull it first with: vendor/bin/loves-ai pull org/missing\n",
             $this->contents($this->stderr),
         );
         self::assertSame('', $this->contents($this->stdout));
@@ -117,7 +117,7 @@ final class TextToImageCommandTest extends TestCase
 
         $stderr = $this->contents($this->stderr);
         self::assertStringStartsWith('Error: org/embeddings cannot generate images: it is not a complete Diffusers text-to-image model', $stderr);
-        self::assertStringEndsWith("\nTo try one: vendor/bin/pull stabilityai/sd-turbo\n", $stderr);
+        self::assertStringEndsWith("\nTo try one: vendor/bin/loves-ai pull stabilityai/sd-turbo\n", $stderr);
         self::assertSame('', $this->contents($this->stdout), 'No intro is shown when the run cannot start.');
     }
 
@@ -156,7 +156,7 @@ final class TextToImageCommandTest extends TestCase
 
         self::assertSame(TextToImageCommand::EXIT_FAILURE, $exitCode);
         self::assertSame(
-            "Error: The text-to-image runner is not installed yet.\nRun vendor/bin/setup text-to-image first to download it 🧰\n",
+            "Error: The text-to-image runner is not installed yet.\nRun vendor/bin/loves-ai setup text-to-image first to download it 🧰\n",
             $this->contents($this->stderr),
         );
     }

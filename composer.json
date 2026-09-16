@@ -35,16 +35,7 @@
         "ext-openssl": "Needed by `setup` to download binaries over HTTPS (enabled in most PHP builds)"
     },
     "bin": [
-        "bin/setup",
-        "bin/pull",
-        "bin/text-to-image",
-        "bin/text-to-text",
-        "bin/image-to-text",
-        "bin/speech-to-text",
-        "bin/text-to-speech",
-        "bin/image-to-image",
-        "bin/text-to-video",
-        "bin/image-to-video"
+        "bin/loves-ai"
     ],
     "autoload": {
         "psr-4": {

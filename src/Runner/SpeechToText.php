@@ -15,7 +15,7 @@ use PhpLovesAi\Filesystem\Path;
 
 /**
  * Transcribes speech in audio or video files with transformers models pulled into the project, through the runner
- * installed by `vendor/bin/setup speech-to-text`.
+ * installed by `vendor/bin/loves-ai setup speech-to-text`.
  *
  *     $transcript = (new SpeechToText())->transcribe('openai/whisper-tiny', __DIR__ . '/interview.mp3');
  *

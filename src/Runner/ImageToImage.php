@@ -15,7 +15,7 @@ use PhpLovesAi\Filesystem\Path;
 
 /**
  * Turns an image into another image with models pulled into the project, through the runner installed by
- * `vendor/bin/setup image-to-image`.
+ * `vendor/bin/loves-ai setup image-to-image`.
  *
  *     $bigger = (new ImageToImage())->transform('caidas/swin2SR-classical-sr-x2-64', 'photo.jpg', 'photo-2x.png');
  *

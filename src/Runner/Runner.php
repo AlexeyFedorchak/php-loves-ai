@@ -10,14 +10,14 @@ use PhpLovesAi\Exception\ModelNotFoundException;
 use PhpLovesAi\Exception\UnsupportedModelException;
 
 /**
- * Runs one task (text-to-image, …) through that task's runner binary installed by `vendor/bin/setup`, with models
- * pulled by `vendor/bin/pull`. Both are found in the project's .local directory (see LocalStorage).
+ * Runs one task (text-to-image, …) through that task's runner binary installed by `vendor/bin/loves-ai setup`, with models
+ * pulled by `vendor/bin/loves-ai pull`. Both are found in the project's .local directory (see LocalStorage).
  *
  * Each implementation adds its own task method, e.g. TextToImage::generate(), since inputs and results differ per task.
  */
 interface Runner
 {
-    /** The binary this runner invokes, as installed by `vendor/bin/setup`. */
+    /** The binary this runner invokes, as installed by `vendor/bin/loves-ai setup`. */
     public static function tool(): Tool;
 
     /** Local directory a model is loaded from: <project root>/.local/models/<model id>. */

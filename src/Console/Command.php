@@ -21,8 +21,11 @@ abstract class Command
     public const EXIT_FAILURE = 1;
     public const EXIT_USAGE = 2;
 
-    /** Name of the bin/ script, used in hints. */
+    /** Name of the subcommand, e.g. "text-to-image", used in hints. */
     protected const NAME = '';
+
+    /** One line for the command list of `vendor/bin/loves-ai`. */
+    protected const DESCRIPTION = '';
 
     /** Help text shown for -h / --help. */
     protected const USAGE = '';
@@ -79,6 +82,18 @@ abstract class Command
         $this->pickIntro = $pickIntro ?? static fn (int $count): int => random_int(0, $count - 1);
     }
 
+    /** The subcommand this class runs, e.g. "text-to-image". */
+    final public static function commandName(): string
+    {
+        return static::NAME;
+    }
+
+    /** One line describing the command, for the command list. */
+    final public static function describe(): string
+    {
+        return static::DESCRIPTION;
+    }
+
     /**
      * @param list<string> $args command-line arguments, without the script name
      */
@@ -101,7 +116,7 @@ abstract class Command
 
             return $this->execute($positional, $options);
         } catch (\InvalidArgumentException $e) {
-            return $this->report($this->stderr, "Error: {$e->getMessage()}", self::EXIT_USAGE, "Run '" . static::NAME . " --help' for usage.");
+            return $this->report($this->stderr, "Error: {$e->getMessage()}", self::EXIT_USAGE, "Run '" . Application::COMMAND . ' ' . static::NAME . " --help' for usage.");
         } catch (PhpLovesAiException $e) {
             return $this->report($this->stderr, "Error: {$e->getMessage()}", self::EXIT_FAILURE, $this->hintFor($e));
         } finally {

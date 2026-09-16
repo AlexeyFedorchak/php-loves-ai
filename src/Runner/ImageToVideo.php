@@ -15,7 +15,7 @@ use PhpLovesAi\Filesystem\Path;
 
 /**
  * Animates an image into a video with diffusers pipelines pulled into the project, through the runner installed by
- * `vendor/bin/setup image-to-video`.
+ * `vendor/bin/loves-ai setup image-to-video`.
  *
  *     $clip = (new ImageToVideo())->generate('Wan-AI/Wan2.1-I2V-14B-480P-Diffusers', 'photo.jpg', 'clip.mp4');
  *
