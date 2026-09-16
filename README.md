@@ -1,20 +1,64 @@
 # php-loves-ai
 
-Run small Hugging Face AI models locally from PHP — no Python installation required.
+```
+██████╗ ██╗  ██╗██████╗            █████╗ ██╗
+██╔══██╗██║  ██║██╔══██╗          ██╔══██╗██║
+██████╔╝███████║██████╔╝   ❤️     ███████║██║
+██╔═══╝ ██╔══██║██╔═══╝           ██╔══██║██║
+██║     ██║  ██║██║               ██║  ██║██║
+╚═╝     ╚═╝  ╚═╝╚═╝               ╚═╝  ╚═╝╚═╝
+```
 
-## How it works
+**Run AI models locally from PHP.** Generate images, write and answer text, describe pictures, transcribe speech,
+read text aloud, enlarge photos and make short videos — on your own machine, from PHP code or the command line,
+with any matching model from Hugging Face.
 
-The Composer package itself is tiny and contains only PHP code. The heavy parts live outside of it:
+| Task              | What it does                                      | Example model                          |
+|-------------------|---------------------------------------------------|----------------------------------------|
+| `text-to-image`   | Generate an image from a text prompt              | `stabilityai/sd-turbo`                 |
+| `image-to-image`  | Enlarge a photo, or redraw it following a prompt  | `caidas/swin2SR-classical-sr-x2-64`    |
+| `text-to-text`    | Answer a prompt, or continue it                   | `Qwen/Qwen2.5-0.5B-Instruct`           |
+| `image-to-text`   | Describe an image, or answer questions about it   | `HuggingFaceTB/SmolVLM-256M-Instruct`  |
+| `speech-to-text`  | Transcribe speech in audio or video               | `openai/whisper-tiny`                  |
+| `text-to-speech`  | Read text aloud into an audio file                | `facebook/mms-tts-eng`                 |
+| `text-to-video`   | Generate a video from a text prompt               | `Wan-AI/Wan2.1-T2V-1.3B-Diffusers`     |
+| `image-to-video`  | Animate an image into a video                     | `stabilityai/stable-video-diffusion-img2vid-xt` |
 
-1. **Puller binary** — a Python script compiled with PyInstaller that pulls models from Hugging Face and saves them locally.
-2. **Runner binaries** — one per task (text-to-image, image-to-image, text-to-video, image-to-video, text-to-text,
-   image-to-text, speech-to-text, text-to-speech), each compiled with PyInstaller. A runner loads a
-   locally saved model and runs it; within a task one runner serves many models (diffusers and transformers pick the
-   right architecture from the model's own config), while tasks get separate binaries because their dependencies differ.
-3. The binaries are built per platform by GitHub Actions and attached to each GitHub release.
-   `vendor/bin/loves-ai setup` downloads the ones matching the current OS; the other commands find them automatically.
-4. The user chooses which models to pull; weights are never shipped through Composer.
-5. PHP code calls the binaries via Symfony Process and exposes a fluent, native-feeling API.
+## Easy to start
+
+```bash
+composer require php-loves-ai/multimodal-ai-runner
+
+vendor/bin/loves-ai setup                  # one-time setup
+vendor/bin/loves-ai setup text-to-image    # add the task you need
+
+vendor/bin/loves-ai pull stabilityai/sd-turbo
+vendor/bin/loves-ai text-to-image stabilityai/sd-turbo "a cozy cat by the fireplace" --steps=1 --guidance=0
+```
+
+```
+🎨 Painting your image with stabilityai/sd-turbo… Masterpieces take a moment — perfect time for a hot chocolate and a cookie 🍪
+🎉 Image saved to /Users/you/tmp/hugging-face/images/20260916-142501-a3f09c.png
+```
+
+The same from PHP:
+
+```php
+use PhpLovesAi\Runner\TextToImage;
+
+$image = (new TextToImage())->generate(
+    model: 'stabilityai/sd-turbo',
+    prompt: 'a cozy cat by the fireplace',
+    outputPath: storage_path('app/cat.png'),
+    steps: 1,
+    guidanceScale: 0.0,
+);
+```
+
+Run `vendor/bin/loves-ai` on its own to see every task and which ones are ready to use.
+
+**No Python, no API keys, no cloud.** Models run on your machine; nothing is sent anywhere. A Hugging Face key is only
+needed for private or gated models.
 
 ## Requirements
 
@@ -264,6 +308,83 @@ Throws `BinaryNotInstalledException` when `setup text-to-image` has not been run
 model was not pulled yet, `UnsupportedModelException` when the pulled model is not a complete Diffusers text-to-image
 model, and `RunFailedException` (with the runner's error output) when generation fails.
 
+## Enlarging and redrawing images
+
+Two kinds of [image-to-image models](https://huggingface.co/models?pipeline_tag=image-to-image) work, and the runner
+tells them apart by the model's own files:
+
+- **Upscaling models**, e.g. `caidas/swin2SR-classical-sr-x2-64` (2× larger) or
+  `caidas/swin2SR-realworld-sr-x4-64-bsrgan-psnr` (4×). They enlarge a photo and clean it up, and take no prompt.
+  This is the one to use for making images bigger than a plain resize can.
+- **Diffusers image-to-image pipelines**, e.g. `stabilityai/sd-turbo` or `timbrooks/instruct-pix2pix`. They redraw the
+  image following a prompt, keeping more or less of the original depending on `--strength`.
+
+(For plain resizing to a smaller size, PHP's own GD or Imagick extension is faster and needs no model.)
+
+### From the command line
+
+```bash
+vendor/bin/loves-ai pull caidas/swin2SR-classical-sr-x2-64
+vendor/bin/loves-ai image-to-image caidas/swin2SR-classical-sr-x2-64 photo.jpg --output=photo-2x.png
+
+vendor/bin/loves-ai pull stabilityai/sd-turbo
+vendor/bin/loves-ai image-to-image stabilityai/sd-turbo photo.jpg --prompt="a watercolor painting" --strength=0.6 --steps=2 --guidance=0
+```
+
+```
+🔎 Making it bigger and better with caidas/swin2SR-classical-sr-x2-64… How about a hot chocolate while you wait? ☕
+If you wish to see all logs, re-run the command with the "--debug" option.
+🎉 Image saved to /var/www/my-app/photo-2x.png
+```
+
+| Option                   | Meaning                                                                        |
+|--------------------------|---------------------------------------------------------------------------------|
+| `--output=PATH`          | Image file to write (default: a timestamped `.png` in `output_dir`)             |
+| `--prompt=TEXT`          | What the result should look like; needed by diffusers models, refused by upscaling models |
+| `--negative-prompt=TEXT` | What the result should not contain (diffusers models)                           |
+| `--strength=N`           | How much of the original to keep, 0 to 1; higher changes more (diffusers models) |
+| `--steps=N`              | Inference steps (default: the pipeline's own)                                   |
+| `--guidance=SCALE`       | Guidance scale; turbo models use `0` (default: the pipeline's own)              |
+| `--seed=N`               | Random seed, for reproducible images                                            |
+| `--device=DEVICE`        | `cpu`, `cuda`, `mps`… (default: the best available)                             |
+| `--log-file=PATH`        | Append the runner's output to this file                                         |
+| `--debug`                | Show the runner's output while working                                          |
+
+Defaults come from `config/image-to-image.php` (`output_dir`, `log_file`).
+
+### From PHP
+
+```php
+use PhpLovesAi\Runner\ImageToImage;
+
+// Finds the runner and the pulled model in the project's .local directory by itself.
+$imageToImage = new ImageToImage();
+
+$bigger = $imageToImage->transform(
+    model: 'caidas/swin2SR-classical-sr-x2-64',
+    imagePath: storage_path('app/photo.jpg'),
+    outputPath: storage_path('app/photo-2x.png'),
+);
+
+$painting = $imageToImage->transform(
+    model: 'stabilityai/sd-turbo',
+    imagePath: storage_path('app/photo.jpg'),
+    outputPath: storage_path('app/painting.png'),
+    prompt: 'a watercolor painting',
+    strength: 0.6,
+    steps: 2,
+    guidanceScale: 0.0,
+);
+```
+
+Throws `ImageNotFoundException` when the image does not exist, `BinaryNotInstalledException` when
+`setup image-to-image` has not been run, `ModelNotFoundException` when the model was not pulled yet,
+`UnsupportedModelException` when the model does not produce images, and `RunFailedException` (with the runner's error
+output) when the run fails, e.g. when a prompt is missing or given to a model that takes none.
+
+Upscaling works on the whole image at once, so memory use grows with the picture: a large photo can need several GB.
+Enlarging in a queue job, and shrinking very large photos first, keeps web requests safe.
+
 ## Generating text
 
 Pull a [transformers text generation model](https://huggingface.co/models?pipeline_tag=text-generation&library=transformers)
@@ -461,6 +582,66 @@ output) when transcription fails, e.g. because the file has no audio.
 Small models (`whisper-tiny`, `whisper-base`) are quick; larger models and long recordings take a while, especially on
 CPU, and each run loads the model from disk again, so run transcription in a queue job.
 
+## Reading text aloud
+
+Pull a [transformers text-to-speech model](https://huggingface.co/models?pipeline_tag=text-to-speech&library=transformers)
+first, one that needs nothing but text:
+
+- **VITS and MMS models**, e.g. `facebook/mms-tts-eng` (one repository per language, such as `mms-tts-deu` or
+  `mms-tts-ukr`) or `kakao-enterprise/vits-ljs`. They are small and fast.
+- **Bark**, e.g. `suno/bark-small`, which has named voices such as `v2/en_speaker_6`, chosen with `--voice`.
+
+Models that need extra files or their own Python code are rejected before starting, with an explanation: SpeechT5
+(which needs a speaker embedding file), Kokoro and Parler-TTS (which ship their own code), and speech recognition
+models given to the wrong runner.
+
+### From the command line
+
+```bash
+vendor/bin/loves-ai pull facebook/mms-tts-eng
+vendor/bin/loves-ai text-to-speech facebook/mms-tts-eng "PHP loves AI, and now it can speak." --output=hello.wav
+```
+
+```
+🎵 Turning your words into sound with facebook/mms-tts-eng… How about a hot chocolate while you wait? ☕
+If you wish to see all logs, re-run the command with the "--debug" option.
+🎉 Audio saved to /var/www/my-app/hello.wav
+```
+
+| Option             | Meaning                                                                                 |
+|--------------------|------------------------------------------------------------------------------------------|
+| `--output=PATH`    | Audio file to write; its extension picks the format: `.wav`, `.mp3`, `.m4a`, `.flac`, `.ogg` (default: a timestamped `.wav` in `output_dir`) |
+| `--voice=VOICE`    | Voice of models that have several, e.g. a Bark preset like `v2/en_speaker_6`, or a speaker number |
+| `--speed=RATE`     | Speaking rate of VITS-style models, e.g. `0.8` slower, `1.2` faster (default: the model's own) |
+| `--seed=N`         | Random seed, for reproducible audio                                                      |
+| `--device=DEVICE`  | `cpu`, `cuda`, `mps`… (default: the best available)                                      |
+| `--log-file=PATH`  | Append the runner's output to this file                                                  |
+| `--debug`          | Show the runner's output while speaking                                                  |
+
+Defaults come from `config/text-to-speech.php` (`output_dir`, `log_file`).
+
+### From PHP
+
+```php
+use PhpLovesAi\Runner\TextToSpeech;
+
+// Finds the runner and the pulled model in the project's .local directory by itself.
+$file = (new TextToSpeech())->speak(
+    model: 'facebook/mms-tts-eng',
+    text: 'PHP loves AI, and now it can speak.',
+    outputPath: storage_path('app/hello.mp3'),
+    speed: 0.9,
+);
+// '/var/www/my-app/storage/app/hello.mp3'
+```
+
+Throws `BinaryNotInstalledException` when `setup text-to-speech` has not been run, `ModelNotFoundException` when the
+model was not pulled yet, `UnsupportedModelException` when the model cannot speak, and `RunFailedException` (with the
+runner's error output) when generation fails, e.g. for an output format it cannot write.
+
+Small voice models speak a sentence in a second or two on a laptop CPU, but each run loads the model again, so run
+longer texts in a queue job.
+
 ## Generating videos
 
 Pull a [diffusers video model](https://huggingface.co/models?pipeline_tag=text-to-video&library=diffusers) first, e.g.
@@ -571,142 +752,19 @@ Throws `ImageNotFoundException` when the image does not exist, `BinaryNotInstall
 `UnsupportedModelException` when the model is not a diffusers video pipeline, and `RunFailedException` when the run
 fails, e.g. when the model takes no prompt but one was given.
 
-## Enlarging and redrawing images
+## How it works
 
-Two kinds of [image-to-image models](https://huggingface.co/models?pipeline_tag=image-to-image) work, and the runner
-tells them apart by the model's own files:
+The Composer package is tiny and holds only PHP code; the heavy parts live outside of it:
 
-- **Upscaling models**, e.g. `caidas/swin2SR-classical-sr-x2-64` (2× larger) or
-  `caidas/swin2SR-realworld-sr-x4-64-bsrgan-psnr` (4×). They enlarge a photo and clean it up, and take no prompt.
-  This is the one to use for making images bigger than a plain resize can.
-- **Diffusers image-to-image pipelines**, e.g. `stabilityai/sd-turbo` or `timbrooks/instruct-pix2pix`. They redraw the
-  image following a prompt, keeping more or less of the original depending on `--strength`.
-
-(For plain resizing to a smaller size, PHP's own GD or Imagick extension is faster and needs no model.)
-
-### From the command line
-
-```bash
-vendor/bin/loves-ai pull caidas/swin2SR-classical-sr-x2-64
-vendor/bin/loves-ai image-to-image caidas/swin2SR-classical-sr-x2-64 photo.jpg --output=photo-2x.png
-
-vendor/bin/loves-ai pull stabilityai/sd-turbo
-vendor/bin/loves-ai image-to-image stabilityai/sd-turbo photo.jpg --prompt="a watercolor painting" --strength=0.6 --steps=2 --guidance=0
-```
-
-```
-🔎 Making it bigger and better with caidas/swin2SR-classical-sr-x2-64… How about a hot chocolate while you wait? ☕
-If you wish to see all logs, re-run the command with the "--debug" option.
-🎉 Image saved to /var/www/my-app/photo-2x.png
-```
-
-| Option                   | Meaning                                                                        |
-|--------------------------|---------------------------------------------------------------------------------|
-| `--output=PATH`          | Image file to write (default: a timestamped `.png` in `output_dir`)             |
-| `--prompt=TEXT`          | What the result should look like; needed by diffusers models, refused by upscaling models |
-| `--negative-prompt=TEXT` | What the result should not contain (diffusers models)                           |
-| `--strength=N`           | How much of the original to keep, 0 to 1; higher changes more (diffusers models) |
-| `--steps=N`              | Inference steps (default: the pipeline's own)                                   |
-| `--guidance=SCALE`       | Guidance scale; turbo models use `0` (default: the pipeline's own)              |
-| `--seed=N`               | Random seed, for reproducible images                                            |
-| `--device=DEVICE`        | `cpu`, `cuda`, `mps`… (default: the best available)                             |
-| `--log-file=PATH`        | Append the runner's output to this file                                         |
-| `--debug`                | Show the runner's output while working                                          |
-
-Defaults come from `config/image-to-image.php` (`output_dir`, `log_file`).
-
-### From PHP
-
-```php
-use PhpLovesAi\Runner\ImageToImage;
-
-// Finds the runner and the pulled model in the project's .local directory by itself.
-$imageToImage = new ImageToImage();
-
-$bigger = $imageToImage->transform(
-    model: 'caidas/swin2SR-classical-sr-x2-64',
-    imagePath: storage_path('app/photo.jpg'),
-    outputPath: storage_path('app/photo-2x.png'),
-);
-
-$painting = $imageToImage->transform(
-    model: 'stabilityai/sd-turbo',
-    imagePath: storage_path('app/photo.jpg'),
-    outputPath: storage_path('app/painting.png'),
-    prompt: 'a watercolor painting',
-    strength: 0.6,
-    steps: 2,
-    guidanceScale: 0.0,
-);
-```
-
-Throws `ImageNotFoundException` when the image does not exist, `BinaryNotInstalledException` when
-`setup image-to-image` has not been run, `ModelNotFoundException` when the model was not pulled yet,
-`UnsupportedModelException` when the model does not produce images, and `RunFailedException` (with the runner's error
-output) when the run fails, e.g. when a prompt is missing or given to a model that takes none.
-
-Upscaling works on the whole image at once, so memory use grows with the picture: a large photo can need several GB.
-Enlarging in a queue job, and shrinking very large photos first, keeps web requests safe.
-
-## Reading text aloud
-
-Pull a [transformers text-to-speech model](https://huggingface.co/models?pipeline_tag=text-to-speech&library=transformers)
-first, one that needs nothing but text:
-
-- **VITS and MMS models**, e.g. `facebook/mms-tts-eng` (one repository per language, such as `mms-tts-deu` or
-  `mms-tts-ukr`) or `kakao-enterprise/vits-ljs`. They are small and fast.
-- **Bark**, e.g. `suno/bark-small`, which has named voices such as `v2/en_speaker_6`, chosen with `--voice`.
-
-Models that need extra files or their own Python code are rejected before starting, with an explanation: SpeechT5
-(which needs a speaker embedding file), Kokoro and Parler-TTS (which ship their own code), and speech recognition
-models given to the wrong runner.
-
-### From the command line
-
-```bash
-vendor/bin/loves-ai pull facebook/mms-tts-eng
-vendor/bin/loves-ai text-to-speech facebook/mms-tts-eng "PHP loves AI, and now it can speak." --output=hello.wav
-```
-
-```
-🎵 Turning your words into sound with facebook/mms-tts-eng… How about a hot chocolate while you wait? ☕
-If you wish to see all logs, re-run the command with the "--debug" option.
-🎉 Audio saved to /var/www/my-app/hello.wav
-```
-
-| Option             | Meaning                                                                                 |
-|--------------------|------------------------------------------------------------------------------------------|
-| `--output=PATH`    | Audio file to write; its extension picks the format: `.wav`, `.mp3`, `.m4a`, `.flac`, `.ogg` (default: a timestamped `.wav` in `output_dir`) |
-| `--voice=VOICE`    | Voice of models that have several, e.g. a Bark preset like `v2/en_speaker_6`, or a speaker number |
-| `--speed=RATE`     | Speaking rate of VITS-style models, e.g. `0.8` slower, `1.2` faster (default: the model's own) |
-| `--seed=N`         | Random seed, for reproducible audio                                                      |
-| `--device=DEVICE`  | `cpu`, `cuda`, `mps`… (default: the best available)                                      |
-| `--log-file=PATH`  | Append the runner's output to this file                                                  |
-| `--debug`          | Show the runner's output while speaking                                                  |
-
-Defaults come from `config/text-to-speech.php` (`output_dir`, `log_file`).
-
-### From PHP
-
-```php
-use PhpLovesAi\Runner\TextToSpeech;
-
-// Finds the runner and the pulled model in the project's .local directory by itself.
-$file = (new TextToSpeech())->speak(
-    model: 'facebook/mms-tts-eng',
-    text: 'PHP loves AI, and now it can speak.',
-    outputPath: storage_path('app/hello.mp3'),
-    speed: 0.9,
-);
-// '/var/www/my-app/storage/app/hello.mp3'
-```
-
-Throws `BinaryNotInstalledException` when `setup text-to-speech` has not been run, `ModelNotFoundException` when the
-model was not pulled yet, `UnsupportedModelException` when the model cannot speak, and `RunFailedException` (with the
-runner's error output) when generation fails, e.g. for an output format it cannot write.
-
-Small voice models speak a sentence in a second or two on a laptop CPU, but each run loads the model again, so run
-longer texts in a queue job.
+1. **Puller binary** — a Python program that downloads models from Hugging Face and saves them in the project.
+2. **Runner binaries** — one per task, each holding its own copy of PyTorch and the libraries that task needs. Within a
+   task, one runner serves many models: diffusers and transformers pick the right architecture from the model's own
+   files, so new models work without a new release.
+3. Both are compiled with PyInstaller into standalone programs, built per platform by GitHub Actions and attached to
+   each GitHub release. `setup` downloads the ones matching the current OS, and the other commands find them
+   automatically. **Nothing needs Python installed.**
+4. You choose which models to pull; weights never travel through Composer.
+5. The PHP classes run those programs through Symfony Process and give you a plain, typed API.
 
 ## Releasing binaries
 
