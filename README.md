@@ -7,8 +7,8 @@ Run small Hugging Face AI models locally from PHP — no Python installation req
 The Composer package itself is tiny and contains only PHP code. The heavy parts live outside of it:
 
 1. **Puller binary** — a Python script compiled with PyInstaller that pulls models from Hugging Face and saves them locally.
-2. **Runner binaries** — one per task (text-to-image, text-to-text, image-to-text, speech-to-text), each compiled with
-   PyInstaller. A runner loads a
+2. **Runner binaries** — one per task (text-to-image, text-to-text, image-to-text, speech-to-text, text-to-speech),
+   each compiled with PyInstaller. A runner loads a
    locally saved model and runs it; within a task one runner serves many models (diffusers and transformers pick the
    right architecture from the model's own config), while tasks get separate binaries because their dependencies differ.
 3. The binaries are built per platform by GitHub Actions and attached to each GitHub release.
@@ -34,6 +34,7 @@ vendor/bin/setup text-to-image    # optional: the image generation runner (a few
 vendor/bin/setup text-to-text     # optional: the text generation runner (a few hundred MB)
 vendor/bin/setup image-to-text    # optional: the image description runner (a few hundred MB)
 vendor/bin/setup speech-to-text   # optional: the speech transcription runner (a few hundred MB)
+vendor/bin/setup text-to-speech   # optional: the speech synthesis runner (a few hundred MB)
 ```
 
 ```
@@ -407,6 +408,66 @@ output) when transcription fails, e.g. because the file has no audio.
 Small models (`whisper-tiny`, `whisper-base`) are quick; larger models and long recordings take a while, especially on
 CPU, and each run loads the model from disk again, so run transcription in a queue job.
 
+## Reading text aloud
+
+Pull a [transformers text-to-speech model](https://huggingface.co/models?pipeline_tag=text-to-speech&library=transformers)
+first, one that needs nothing but text:
+
+- **VITS and MMS models**, e.g. `facebook/mms-tts-eng` (one repository per language, such as `mms-tts-deu` or
+  `mms-tts-ukr`) or `kakao-enterprise/vits-ljs`. They are small and fast.
+- **Bark**, e.g. `suno/bark-small`, which has named voices such as `v2/en_speaker_6`, chosen with `--voice`.
+
+Models that need extra files or their own Python code are rejected before starting, with an explanation: SpeechT5
+(which needs a speaker embedding file), Kokoro and Parler-TTS (which ship their own code), and speech recognition
+models given to the wrong runner.
+
+### From the command line
+
+```bash
+vendor/bin/pull facebook/mms-tts-eng
+vendor/bin/text-to-speech facebook/mms-tts-eng "PHP loves AI, and now it can speak." --output=hello.wav
+```
+
+```
+🎵 Turning your words into sound with facebook/mms-tts-eng… How about a hot chocolate while you wait? ☕
+If you wish to see all logs, re-run the command with the "--debug" option.
+🎉 Audio saved to /var/www/my-app/hello.wav
+```
+
+| Option             | Meaning                                                                                 |
+|--------------------|------------------------------------------------------------------------------------------|
+| `--output=PATH`    | Audio file to write; its extension picks the format: `.wav`, `.mp3`, `.m4a`, `.flac`, `.ogg` (default: a timestamped `.wav` in `output_dir`) |
+| `--voice=VOICE`    | Voice of models that have several, e.g. a Bark preset like `v2/en_speaker_6`, or a speaker number |
+| `--speed=RATE`     | Speaking rate of VITS-style models, e.g. `0.8` slower, `1.2` faster (default: the model's own) |
+| `--seed=N`         | Random seed, for reproducible audio                                                      |
+| `--device=DEVICE`  | `cpu`, `cuda`, `mps`… (default: the best available)                                      |
+| `--log-file=PATH`  | Append the runner's output to this file                                                  |
+| `--debug`          | Show the runner's output while speaking                                                  |
+
+Defaults come from `config/text-to-speech.php` (`output_dir`, `log_file`).
+
+### From PHP
+
+```php
+use PhpLovesAi\Runner\TextToSpeech;
+
+// Finds the runner and the pulled model in the project's .local directory by itself.
+$file = (new TextToSpeech())->speak(
+    model: 'facebook/mms-tts-eng',
+    text: 'PHP loves AI, and now it can speak.',
+    outputPath: storage_path('app/hello.mp3'),
+    speed: 0.9,
+);
+// '/var/www/my-app/storage/app/hello.mp3'
+```
+
+Throws `BinaryNotInstalledException` when `setup text-to-speech` has not been run, `ModelNotFoundException` when the
+model was not pulled yet, `UnsupportedModelException` when the model cannot speak, and `RunFailedException` (with the
+runner's error output) when generation fails, e.g. for an output format it cannot write.
+
+Small voice models speak a sentence in a second or two on a laptop CPU, but each run loads the model again, so run
+longer texts in a queue job.
+
 ## Releasing binaries
 
 Publishing a GitHub release runs `.github/workflows/release-binaries.yml`, which builds every binary on each supported
@@ -422,6 +483,7 @@ python/runners/text-to-image/build.sh     # → python/runners/text-to-image/dis
 python/runners/text-to-text/build.sh      # → python/runners/text-to-text/dist/text-to-text-<os>-<arch>/
 python/runners/image-to-text/build.sh     # → python/runners/image-to-text/dist/image-to-text-<os>-<arch>/
 python/runners/speech-to-text/build.sh    # → python/runners/speech-to-text/dist/speech-to-text-<os>-<arch>/
+python/runners/text-to-speech/build.sh    # → python/runners/text-to-speech/dist/text-to-speech-<os>-<arch>/
 python/package.sh                         # → python/release/*.tar.gz + *.sha256
 ```
 
@@ -430,14 +492,13 @@ Linux binaries can be built from any Docker host (including a Mac): `python/buil
 20.04+ and RHEL 9+. The release workflow uses the same script.
 
 The runners bundle torch (plus diffusers or transformers, torchvision for image-to-text and PyAV with FFmpeg's
-libraries for speech-to-text), so they are built as directories (~600–700 MB, ~210–220 MB packed) rather than single files; Linux builds use CPU-only torch to stay within GitHub's release asset size limit.
+libraries for the audio runners), so they are built as directories (~600–700 MB, ~210–220 MB packed) rather than single files; Linux builds use CPU-only torch to stay within GitHub's release asset size limit.
 To test `setup` against local assets, serve `python/release` over HTTP and set `PHP_LOVES_AI_DOWNLOAD_URL` to its URL.
 
 ## Structure
 
 ```
-bin/                 CLI scripts exposed via vendor/bin (setup, pull, text-to-image, text-to-text, image-to-text,
-                     speech-to-text)
+bin/                 CLI scripts exposed via vendor/bin (setup, pull, and one per runner)
 config/              Package config (pull.php and one file per runner)
 python/              Python sources compiled into standalone binaries (not shipped via Composer)
   puller/            Pulls models from Hugging Face and saves them locally
@@ -446,6 +507,7 @@ python/              Python sources compiled into standalone binaries (not shipp
     text-to-text/    Generates text with transformers models
     image-to-text/   Describes images with transformers models
     speech-to-text/  Transcribes speech with transformers models
+    text-to-speech/  Reads text aloud with transformers models
 src/
   Enum/              Model registry
   Binary/            Platform detection and installing (Installer) the prebuilt binaries
@@ -454,8 +516,8 @@ src/
   Filesystem/        LocalStorage (the fixed paths inside .local) and path helpers
   HuggingFace/       Credentials: the optional API key saved in .local/huggingface/credentials.json
   Process/           PHP wrapper that invokes the puller binary (ModelPuller)
-  Runner/            One class per task running pulled models (TextToImage, TextToText, ImageToText, SpeechToText),
-                     sharing the Runner interface
+  Runner/            One class per task running pulled models (TextToImage, TextToText, ImageToText, SpeechToText,
+                     TextToSpeech), sharing the Runner interface
   Exception/         Package exceptions
 tests/
   Unit/
