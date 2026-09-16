@@ -31,7 +31,8 @@ docker run --rm --platform "$platform" \
             --exclude=./runners/text-to-text/build --exclude=./runners/text-to-text/dist \
             --exclude=./runners/image-to-text/build --exclude=./runners/image-to-text/dist \
             --exclude=./runners/speech-to-text/build --exclude=./runners/speech-to-text/dist \
-            --exclude=./runners/text-to-speech/build --exclude=./runners/text-to-speech/dist --exclude=./release \
+            --exclude=./runners/text-to-speech/build --exclude=./runners/text-to-speech/dist \
+            --exclude=./runners/image-to-image/build --exclude=./runners/image-to-image/dist --exclude=./release \
             -cf - . | tar -C /work -xf -
 
         /work/puller/build.sh
@@ -40,5 +41,6 @@ docker run --rm --platform "$platform" \
         /work/runners/image-to-text/build.sh
         /work/runners/speech-to-text/build.sh
         /work/runners/text-to-speech/build.sh
+        /work/runners/image-to-image/build.sh
         /work/package.sh /out
     '

@@ -36,7 +36,8 @@
         "bin/text-to-text",
         "bin/image-to-text",
         "bin/speech-to-text",
-        "bin/text-to-speech"
+        "bin/text-to-speech",
+        "bin/image-to-image"
     ],
     "autoload": {
         "psr-4": {

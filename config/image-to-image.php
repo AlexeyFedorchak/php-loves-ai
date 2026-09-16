@@ -1,0 +1,16 @@
+<?php
+
+declare(strict_types=1);
+
+// Models are always loaded from <project root>/.local/models/<model id>, and the runner from
+// <project root>/.local/runners, as installed by `vendor/bin/pull` and `vendor/bin/setup image-to-image`.
+
+return [
+    // Directory images are saved into when `image-to-image --output` is not given.
+    // A leading "~" is expanded to the user's home directory.
+    'output_dir' => '~/tmp/hugging-face/images',
+
+    // File the runner's output is appended to, e.g. '~/tmp/hugging-face/image-to-image.log'.
+    // null discards the output. A leading "~" is expanded to the user's home directory.
+    'log_file' => null,
+];

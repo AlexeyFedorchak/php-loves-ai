@@ -25,6 +25,8 @@ final class FakeProject
 
     public const FAKE_TEXT_TO_SPEECH = __DIR__ . '/../Fixtures/fake-text-to-speech';
 
+    public const FAKE_IMAGE_TO_IMAGE = __DIR__ . '/../Fixtures/fake-image-to-image';
+
     public readonly string $root;
 
     public readonly LocalStorage $storage;
