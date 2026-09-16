@@ -48,6 +48,36 @@ final class ModelPullerTest extends TestCase
         self::assertFileExists("{$this->project->root}/.local/.gitignore");
     }
 
+    public function testReportsSkippedFiles(): void
+    {
+        $skipped = [];
+        $this->puller()->pull(['org/model'], onSkipped: static function (string $model, int $files, int $bytes) use (&$skipped): void {
+            $skipped[$model] = [$files, $bytes];
+        });
+
+        self::assertSame(['org/model' => [2, 471859200]], $skipped);
+    }
+
+    public function testAllFilesAsksForEverything(): void
+    {
+        $skipped = [];
+        $progress = '';
+
+        $this->puller()->pull(
+            ['org/model'],
+            onProgress: static function (string $chunk) use (&$progress): void {
+                $progress .= $chunk;
+            },
+            allFiles: true,
+            onSkipped: static function (string $model, int $files, int $bytes) use (&$skipped): void {
+                $skipped[$model] = [$files, $bytes];
+            },
+        );
+
+        self::assertStringContainsString('--all', $progress);
+        self::assertSame([], $skipped, 'Nothing is skipped when every file is asked for.');
+    }
+
     public function testPassesRevisionAndStreamsProgress(): void
     {
         $progress = '';

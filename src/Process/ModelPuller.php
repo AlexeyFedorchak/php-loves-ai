@@ -21,6 +21,9 @@ use Symfony\Component\Process\Process;
  *
  * Public models are pulled without an API key. Private and gated models need the key saved in the project's
  * credentials (see Credentials); an environment variable of the same name is never used.
+ *
+ * Repositories often publish the same weights for several frameworks; only the files the runners can read are
+ * downloaded, unless $allFiles asks for everything.
  */
 final class ModelPuller
 {
@@ -48,9 +51,13 @@ final class ModelPuller
     }
 
     /**
-     * @param list<string>                  $models     Hugging Face model ids, e.g. "openai-community/gpt2"
-     * @param string|null                   $revision   branch, tag or commit hash; null for the default branch
-     * @param (callable(string): void)|null $onProgress receives the puller's progress output as it arrives
+     * @param list<string>                            $models     Hugging Face model ids, e.g. "openai-community/gpt2"
+     * @param string|null                             $revision   branch, tag or commit hash; null for the default branch
+     * @param (callable(string): void)|null           $onProgress receives the puller's progress output as it arrives
+     * @param bool                                    $allFiles   download every file, including weights for frameworks
+     *                                                            the runners cannot read; by default those are skipped
+     * @param (callable(string, int, int): void)|null $onSkipped  receives model id, number of skipped files and the
+     *                                                            bytes saved, for models where anything was skipped
      *
      * @return array<string, string> model id => absolute local path
      *
@@ -61,7 +68,13 @@ final class ModelPuller
      * @throws MissingApiKeyException     when an outdated puller requires a key that is not saved
      * @throws PullFailedException        when a model could not be pulled for another reason
      */
-    public function pull(array $models, ?string $revision = null, ?callable $onProgress = null): array
+    public function pull(
+        array $models,
+        ?string $revision = null,
+        ?callable $onProgress = null,
+        bool $allFiles = false,
+        ?callable $onSkipped = null,
+    ): array
     {
         if ($models === []) {
             return [];
@@ -76,6 +89,9 @@ final class ModelPuller
         if ($revision !== null) {
             array_push($command, '--revision', $revision);
         }
+        if ($allFiles) {
+            $command[] = '--all';
+        }
         // "--" stops option parsing, so model ids can never be read as flags.
         array_push($command, '--', ...$models);
 
@@ -89,7 +105,13 @@ final class ModelPuller
             }
         });
 
-        [$pulled, $denied] = self::parseOutput($process->getOutput());
+        [$pulled, $denied, $skipped] = self::parseOutput($process->getOutput());
+
+        if ($onSkipped !== null) {
+            foreach ($skipped as $model => [$files, $bytes]) {
+                $onSkipped($model, $files, $bytes);
+            }
+        }
         $exitCode = $process->getExitCode() ?? -1;
 
         if ($exitCode === self::EXIT_OUTDATED_MISSING_API_KEY && $apiKey === null) {
@@ -130,12 +152,14 @@ final class ModelPuller
     }
 
     /**
-     * @return array{array<string, string>, array<string, string>} pulled (model => path) and denied (model => reason)
+     * @return array{array<string, string>, array<string, string>, array<string, array{int, int}>} pulled
+     *         (model => path), denied (model => reason) and skipped files (model => [files, bytes])
      */
     private static function parseOutput(string $output): array
     {
         $pulled = [];
         $denied = [];
+        $skipped = [];
 
         foreach (preg_split('/\R/', $output, flags: PREG_SPLIT_NO_EMPTY) ?: [] as $line) {
             $entry = json_decode($line, true);
@@ -145,11 +169,16 @@ final class ModelPuller
 
             if (is_string($entry['path'] ?? null)) {
                 $pulled[$entry['model']] = $entry['path'];
+
+                $files = is_int($entry['skipped_files'] ?? null) ? $entry['skipped_files'] : 0;
+                if ($files > 0) {
+                    $skipped[$entry['model']] = [$files, is_int($entry['skipped_bytes'] ?? null) ? $entry['skipped_bytes'] : 0];
+                }
             } elseif (in_array($entry['error'] ?? null, [ModelAccessDeniedException::GATED, ModelAccessDeniedException::NOT_FOUND], true)) {
                 $denied[$entry['model']] = $entry['error'];
             }
         }
 
-        return [$pulled, $denied];
+        return [$pulled, $denied, $skipped];
     }
 }

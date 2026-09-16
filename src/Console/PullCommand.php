@@ -37,6 +37,8 @@ final class PullCommand extends Command
 
     protected const OPTIONS = ['revision', 'token', 'log-file'];
 
+    protected const FLAGS = ['all'];
+
     protected const USAGE = <<<'TXT'
         Usage: vendor/bin/loves-ai pull <model> [options]
 
@@ -48,9 +50,13 @@ final class PullCommand extends Command
         Options:
           --revision=REV     Branch, tag or commit hash (default: 'revision' in config/pull.php)
           --token=KEY        Hugging Face API key for private and gated models; saved in the project for next time
+          --all              Download every file, including weights for frameworks the runners cannot read
           --log-file=PATH    Append the puller's output to this file (default: 'log_file' in config/pull.php)
           --debug            Show the puller's output while pulling
           -h, --help         Show this help
+
+        Repositories often publish the same weights for PyTorch, TensorFlow, Flax and ONNX; only the files the
+        runners can read are downloaded, which is usually a fraction of the repository.
 
         Public models need no API key. The key saved by `setup` or --token is stored in
         .local/huggingface/credentials.json in the project root.
@@ -101,13 +107,40 @@ final class PullCommand extends Command
         $this->startLog($options['log-file'] ?? $config->logFile, "pull {$model} (revision {$revision})");
         $this->writeIntro(self::INTROS, ['{model}' => $model]);
 
+        $skipped = null;
+
         try {
-            $paths = $puller->pull([$model], $revision, $this->binaryOutputHandler());
+            $paths = $puller->pull(
+                [$model],
+                $revision,
+                $this->binaryOutputHandler(),
+                allFiles: isset($options['all']),
+                onSkipped: static function (string $model, int $files, int $bytes) use (&$skipped): void {
+                    $skipped = [$files, $bytes];
+                },
+            );
         } catch (PullFailedException $e) {
             return $this->binaryFailed("Error: failed to pull {$model} (exit code {$e->exitCode}).");
         }
 
-        return $this->succeeded("Pulled {$model} into {$paths[$model]}");
+        $exitCode = $this->succeeded("Pulled {$model} into {$paths[$model]}");
+        if ($skipped !== null) {
+            $this->writeLine(sprintf(
+                '   Skipped %d file%s (%s) the runners cannot read: other frameworks or training leftovers.',
+                $skipped[0],
+                $skipped[0] === 1 ? '' : 's',
+                self::megabytes($skipped[1]),
+            ), self::GREY);
+        }
+
+        return $exitCode;
+    }
+
+    private static function megabytes(int $bytes): string
+    {
+        return $bytes < 1073741824
+            ? number_format($bytes / 1048576, 1) . ' MB'
+            : number_format($bytes / 1073741824, 1) . ' GB';
     }
 
     protected function hintFor(PhpLovesAiException $e): ?string

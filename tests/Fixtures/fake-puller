@@ -9,9 +9,12 @@ echo "args: $*" >&2
 echo "api key: ${HUGGING_FACE_API_KEY:-none}" >&2
 
 dir=""
+skipped_files=2
+skipped_bytes=471859200
 while [ $# -gt 0 ]; do
     case "$1" in
         --dir) dir="$2"; shift 2 ;;
+        --all) skipped_files=0; skipped_bytes=0; shift ;;
         --revision) shift 2 ;;
         --) shift; break ;;
         *) break ;;
@@ -36,7 +39,7 @@ for model in "$@"; do
                 printf '{"model": "%s", "error": "not_found"}\n' "$model"
                 status=1
             else
-                printf '{"model": "%s", "path": "%s/%s"}\n' "$model" "$dir" "$model"
+                printf '{"model": "%s", "path": "%s/%s", "skipped_files": %s, "skipped_bytes": %s}\n' "$model" "$dir" "$model" "$skipped_files" "$skipped_bytes"
             fi
             ;;
         outdated/model)
@@ -44,10 +47,10 @@ for model in "$@"; do
                 echo "[puller] Error: environment variable HUGGING_FACE_API_KEY is not set." >&2
                 exit 3
             fi
-            printf '{"model": "%s", "path": "%s/%s"}\n' "$model" "$dir" "$model"
+            printf '{"model": "%s", "path": "%s/%s", "skipped_files": %s, "skipped_bytes": %s}\n' "$model" "$dir" "$model" "$skipped_files" "$skipped_bytes"
             ;;
         *)
-            printf '{"model": "%s", "path": "%s/%s"}\n' "$model" "$dir" "$model"
+            printf '{"model": "%s", "path": "%s/%s", "skipped_files": %s, "skipped_bytes": %s}\n' "$model" "$dir" "$model" "$skipped_files" "$skipped_bytes"
             ;;
     esac
 done

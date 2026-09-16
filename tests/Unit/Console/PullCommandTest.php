@@ -53,7 +53,8 @@ final class PullCommandTest extends TestCase
         self::assertSame(
             "☕ Pulling openai-community/gpt2… Big downloads take a moment — perfect time for a cup of tea and some cookies 🍪\n"
             . "If you wish to see all logs, re-run the command with the \"--debug\" option.\n"
-            . "🎉 Pulled openai-community/gpt2 into {$this->modelsDir}/openai-community/gpt2\n",
+            . "🎉 Pulled openai-community/gpt2 into {$this->modelsDir}/openai-community/gpt2\n"
+            . "   Skipped 2 files (450.0 MB) the runners cannot read: other frameworks or training leftovers.\n",
             $this->contents($this->stdout),
         );
         self::assertSame('', $this->contents($this->stderr));
@@ -130,6 +131,14 @@ final class PullCommandTest extends TestCase
         self::assertStringContainsString("args: --dir {$this->modelsDir} --revision main -- org/first", $contents);
         self::assertStringContainsString("Pulled org/first into {$this->modelsDir}/org/first", $contents);
         self::assertStringContainsString("Pulled org/second into {$this->modelsDir}/org/second", $contents);
+    }
+
+    public function testAllFilesPullsEverythingWithoutASkippedLine(): void
+    {
+        self::assertSame(PullCommand::EXIT_OK, $this->runCommand(['openai-community/gpt2', '--all', '--debug']));
+
+        self::assertStringContainsString('--all', $this->contents($this->stderr));
+        self::assertStringNotContainsString('Skipped', $this->contents($this->stdout));
     }
 
     public function testShowsHelp(): void

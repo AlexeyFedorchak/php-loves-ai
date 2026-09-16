@@ -126,14 +126,34 @@ Public models need no API key. Private and gated models use the key saved in the
 ### From the command line
 
 ```bash
-vendor/bin/loves-ai pull openai-community/gpt2 [--revision=main] [--token=hf_...] [--log-file=PATH] [--debug]
+vendor/bin/loves-ai pull openai-community/gpt2 [--revision=main] [--token=hf_...] [--all] [--log-file=PATH] [--debug]
 ```
 
 ```
 ☕ Pulling openai-community/gpt2… Big downloads take a moment — perfect time for a cup of tea and some cookies 🍪
 If you wish to see all logs, re-run the command with the "--debug" option.
 🎉 Pulled openai-community/gpt2 into /var/www/my-app/.local/models/openai-community/gpt2
+   Skipped 3 files (450.0 MB) the runners cannot read: other frameworks or training leftovers.
 ```
+
+### Only the files the runners can read
+
+Hugging Face repositories usually publish the same weights several times over, for PyTorch, TensorFlow, Flax and ONNX.
+The runners read PyTorch only, so everything else is downloaded for nothing. `pull` leaves those files out:
+
+| Model                                  | Repository | Pulled   |
+|----------------------------------------|-----------:|---------:|
+| `openai/whisper-tiny`                  |    0.61 GB | **0.16 GB** |
+| `SfinOe/stable-diffusion-v1.5`         |   10.96 GB | **5.48 GB** |
+| `facebook/mms-tts-eng`                 |    0.29 GB | **0.15 GB** |
+| `nlpconnect/vit-gpt2-image-captioning` |    0.98 GB | 0.98 GB  |
+
+Skipped are weights for other frameworks (`.h5`, `.msgpack`, `.onnx`, `.gguf`, `.ckpt`), single-file copies of a
+diffusers pipeline, alternative versions such as `fp16` and `non_ema`, leftovers from training (`optimizer.pt`,
+`trainer_state.json`, `checkpoint-*`) and sample media. A `.bin` file is skipped **only** when the same repository
+also publishes it as `.safetensors`, so models that ship `.bin` alone — the last row above — are pulled untouched.
+
+Pass `--all` to download the repository as it is, if a model ever needs a file these rules leave out.
 
 The opening message is picked at random from a few cozy variants (see `PullCommand::INTROS`).
 
@@ -167,6 +187,8 @@ use PhpLovesAi\Process\ModelPuller;
 $paths = (new ModelPuller())->pull(
     ['openai-community/gpt2', 'distilbert/distilbert-base-uncased'],
     onProgress: fn (string $chunk) => fwrite(STDERR, $chunk),
+    // allFiles: true,  // download every file, as `pull --all` does
+    onSkipped: fn (string $model, int $files, int $bytes) => fwrite(STDERR, "{$model}: skipped {$files} files\n"),
 );
 // ['openai-community/gpt2' => '/var/www/my-app/.local/models/openai-community/gpt2', ...]
 ```
@@ -179,10 +201,10 @@ throws `ModelAccessDeniedException` (`$model`, `$reason`: `gated` or `not_found`
 The binary can also be used directly:
 
 ```bash
-[HUGGING_FACE_API_KEY=hf_...] .local/runners/puller-darwin-arm64 --dir .local/models [--revision main] -- openai-community/gpt2
+[HUGGING_FACE_API_KEY=hf_...] .local/runners/puller-darwin-arm64 --dir .local/models [--revision main] [--all] -- openai-community/gpt2
 ```
 
-It writes one JSON line per model to stdout, `{"model": "...", "path": "..."}` when pulled or
+It writes one JSON line per model to stdout, `{"model": "...", "path": "...", "skipped_files": 3, "skipped_bytes": 471859200}` when pulled or
 `{"model": "...", "error": "gated|not_found"}` when refused, and progress to stderr.
 Exit codes: `0` success, `1` at least one model failed, `2` invalid arguments.
 
