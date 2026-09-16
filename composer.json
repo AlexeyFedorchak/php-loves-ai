@@ -6,15 +6,24 @@
     "keywords": [
         "ai",
         "llm",
-        "machine-learning",
-        "hugging-face",
-        "inference",
-        "local",
+        "php-ai",
         "multimodal",
+        "hugging-face",
         "text-to-image",
+        "image-to-image",
+        "text-to-text",
+        "image-to-text",
         "speech-to-text",
         "text-to-speech",
-        "whisper"
+        "text-to-video",
+        "image-to-video",
+        "transformers",
+        "diffusers",
+        "whisper",
+        "stable-diffusion",
+        "machine-learning",
+        "inference",
+        "local"
     ],
     "authors": [
         {
