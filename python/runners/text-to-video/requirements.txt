@@ -1,0 +1,9 @@
+torch>=2.5
+diffusers>=0.32,<1
+transformers>=4.56,<6
+accelerate>=1.0
+safetensors>=0.4
+sentencepiece>=0.2
+protobuf>=5
+av>=12
+Pillow>=10

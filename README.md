@@ -7,8 +7,8 @@ Run small Hugging Face AI models locally from PHP — no Python installation req
 The Composer package itself is tiny and contains only PHP code. The heavy parts live outside of it:
 
 1. **Puller binary** — a Python script compiled with PyInstaller that pulls models from Hugging Face and saves them locally.
-2. **Runner binaries** — one per task (text-to-image, image-to-image, text-to-text, image-to-text, speech-to-text,
-   text-to-speech), each compiled with PyInstaller. A runner loads a
+2. **Runner binaries** — one per task (text-to-image, image-to-image, text-to-video, text-to-text, image-to-text,
+   speech-to-text, text-to-speech), each compiled with PyInstaller. A runner loads a
    locally saved model and runs it; within a task one runner serves many models (diffusers and transformers pick the
    right architecture from the model's own config), while tasks get separate binaries because their dependencies differ.
 3. The binaries are built per platform by GitHub Actions and attached to each GitHub release.
@@ -36,6 +36,7 @@ vendor/bin/setup image-to-text    # optional: the image description runner (a fe
 vendor/bin/setup speech-to-text   # optional: the speech transcription runner (a few hundred MB)
 vendor/bin/setup text-to-speech   # optional: the speech synthesis runner (a few hundred MB)
 vendor/bin/setup image-to-image   # optional: the image enlarging and redrawing runner (a few hundred MB)
+vendor/bin/setup text-to-video    # optional: the video generation runner (a few hundred MB)
 ```
 
 ```
@@ -409,6 +410,64 @@ output) when transcription fails, e.g. because the file has no audio.
 Small models (`whisper-tiny`, `whisper-base`) are quick; larger models and long recordings take a while, especially on
 CPU, and each run loads the model from disk again, so run transcription in a queue job.
 
+## Generating videos
+
+Pull a [diffusers video model](https://huggingface.co/models?pipeline_tag=text-to-video&library=diffusers) first, e.g.
+`Wan-AI/Wan2.1-T2V-1.3B-Diffusers`, `zai-org/CogVideoX-2b` or an AnimateDiff pipeline.
+
+**Video models are the heaviest thing here.** They are several gigabytes to pull, want a lot of memory, and a few
+seconds of video takes minutes on a GPU and up to hours on a CPU. Start with the smallest model, few frames and a small
+frame size, and always generate in a queue job.
+
+### From the command line
+
+```bash
+vendor/bin/pull Wan-AI/Wan2.1-T2V-1.3B-Diffusers
+vendor/bin/text-to-video Wan-AI/Wan2.1-T2V-1.3B-Diffusers "a cat walking through tall grass" --frames=33 --output=cat.mp4
+```
+
+```
+🎬 Rolling the camera with Wan-AI/Wan2.1-T2V-1.3B-Diffusers… Films take their time — perfect for a pot of tea and some cookies 🍪
+If you wish to see all logs, re-run the command with the "--debug" option.
+🎉 Video saved to /var/www/my-app/cat.mp4
+```
+
+| Option                      | Meaning                                                                   |
+|-----------------------------|---------------------------------------------------------------------------|
+| `--output=PATH`             | Video file to write; its extension picks the format: `.mp4`, `.webm`, `.mkv`, `.gif` (default: a timestamped `.mp4` in `output_dir`) |
+| `--negative-prompt=TEXT`    | What the video should not contain                                         |
+| `--frames=N`                | Number of frames to generate (default: the pipeline's own)                |
+| `--fps=N`                   | Frames per second of the written file (default: 8)                        |
+| `--steps=N`                 | Inference steps (default: the pipeline's own)                             |
+| `--guidance=SCALE`          | Guidance scale (default: the pipeline's own)                              |
+| `--width=PX`, `--height=PX` | Frame size (default: the pipeline's own)                                  |
+| `--seed=N`                  | Random seed, for reproducible videos                                      |
+| `--device=DEVICE`           | `cpu`, `cuda`, `mps`… (default: the best available)                       |
+| `--log-file=PATH`           | Append the runner's output to this file                                   |
+| `--debug`                   | Show the runner's output while filming                                    |
+
+Defaults come from `config/text-to-video.php` (`output_dir`, `log_file`).
+
+### From PHP
+
+```php
+use PhpLovesAi\Runner\TextToVideo;
+
+// Finds the runner and the pulled model in the project's .local directory by itself.
+$clip = (new TextToVideo())->generate(
+    model: 'Wan-AI/Wan2.1-T2V-1.3B-Diffusers',
+    prompt: 'a cat walking through tall grass',
+    outputPath: storage_path('app/cat.mp4'),
+    frames: 33,
+    fps: 16,
+);
+```
+
+Throws `BinaryNotInstalledException` when `setup text-to-video` has not been run, `ModelNotFoundException` when the
+model was not pulled yet, `UnsupportedModelException` when the model is not a diffusers video pipeline (a still-image
+pipeline says so and points to `text-to-image`), and `RunFailedException` (with the runner's error output) when
+generation fails, e.g. for an output format it cannot write or when memory runs out.
+
 ## Enlarging and redrawing images
 
 Two kinds of [image-to-image models](https://huggingface.co/models?pipeline_tag=image-to-image) work, and the runner
@@ -563,6 +622,7 @@ python/runners/image-to-text/build.sh     # → python/runners/image-to-text/dis
 python/runners/speech-to-text/build.sh    # → python/runners/speech-to-text/dist/speech-to-text-<os>-<arch>/
 python/runners/text-to-speech/build.sh    # → python/runners/text-to-speech/dist/text-to-speech-<os>-<arch>/
 python/runners/image-to-image/build.sh    # → python/runners/image-to-image/dist/image-to-image-<os>-<arch>/
+python/runners/text-to-video/build.sh     # → python/runners/text-to-video/dist/text-to-video-<os>-<arch>/
 python/package.sh                         # → python/release/*.tar.gz + *.sha256
 ```
 
@@ -584,6 +644,7 @@ python/              Python sources compiled into standalone binaries (not shipp
   runners/           One runner per task, running locally saved models
     text-to-image/   Generates images with diffusers models
     image-to-image/  Enlarges images, or redraws them with diffusers models
+    text-to-video/   Generates videos with diffusers pipelines
     text-to-text/    Generates text with transformers models
     image-to-text/   Describes images with transformers models
     speech-to-text/  Transcribes speech with transformers models
@@ -596,8 +657,8 @@ src/
   Filesystem/        LocalStorage (the fixed paths inside .local) and path helpers
   HuggingFace/       Credentials: the optional API key saved in .local/huggingface/credentials.json
   Process/           PHP wrapper that invokes the puller binary (ModelPuller)
-  Runner/            One class per task running pulled models (TextToImage, ImageToImage, TextToText, ImageToText,
-                     SpeechToText, TextToSpeech), sharing the Runner interface
+  Runner/            One class per task running pulled models (TextToImage, ImageToImage, TextToVideo, TextToText,
+                     ImageToText, SpeechToText, TextToSpeech), sharing the Runner interface
   Exception/         Package exceptions
 tests/
   Unit/

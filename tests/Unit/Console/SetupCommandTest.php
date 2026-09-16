@@ -62,7 +62,8 @@ final class SetupCommandTest extends TestCase
             . "💡 Want to describe images too? Run: vendor/bin/setup image-to-text (a few hundred MB)\n"
             . "💡 Want to transcribe audio too? Run: vendor/bin/setup speech-to-text (a few hundred MB)\n"
             . "💡 Want to read text aloud too? Run: vendor/bin/setup text-to-speech (a few hundred MB)\n"
-            . "💡 Want to enlarge or redraw images too? Run: vendor/bin/setup image-to-image (a few hundred MB)\n",
+            . "💡 Want to enlarge or redraw images too? Run: vendor/bin/setup image-to-image (a few hundred MB)\n"
+            . "💡 Want to generate videos too? Run: vendor/bin/setup text-to-video (a few hundred MB)\n",
             $this->contents($this->stdout),
         );
         self::assertSame('', $this->contents($this->stderr));
@@ -77,8 +78,9 @@ final class SetupCommandTest extends TestCase
         $this->release->publish(Tool::SpeechToText);
         $this->release->publish(Tool::TextToSpeech);
         $this->release->publish(Tool::ImageToImage);
+        $this->release->publish(Tool::TextToVideo);
 
-        self::assertSame(SetupCommand::EXIT_OK, $this->runCommand(['puller', 'text-to-image', 'text-to-text', 'image-to-text', 'speech-to-text', 'text-to-speech', 'image-to-image']));
+        self::assertSame(SetupCommand::EXIT_OK, $this->runCommand(['puller', 'text-to-image', 'text-to-text', 'image-to-text', 'speech-to-text', 'text-to-speech', 'image-to-image', 'text-to-video']));
 
         self::assertTrue($this->storage->isInstalled(Tool::Puller));
         self::assertTrue($this->storage->isInstalled(Tool::TextToImage));
@@ -89,6 +91,7 @@ final class SetupCommandTest extends TestCase
         self::assertStringContainsString('👉 Transcribe audio: vendor/bin/speech-to-text <model> <audio>', $this->contents($this->stdout));
         self::assertStringContainsString('👉 Read text aloud: vendor/bin/text-to-speech <model> "<text>"', $this->contents($this->stdout));
         self::assertStringContainsString('👉 Transform an image: vendor/bin/image-to-image <model> <image>', $this->contents($this->stdout));
+        self::assertStringContainsString('👉 Generate a video: vendor/bin/text-to-video <model> "<prompt>"', $this->contents($this->stdout));
         self::assertStringNotContainsString('💡 Want to', $this->contents($this->stdout));
         self::assertStringContainsString("✅ The text-to-image runner is installed at {$this->storage->binaryPath(Tool::TextToImage)}", $this->contents($this->stdout));
         self::assertStringContainsString('👉 Generate an image: vendor/bin/text-to-image <model> "<prompt>"', $this->contents($this->stdout));
@@ -121,8 +124,8 @@ final class SetupCommandTest extends TestCase
 
     public function testRejectsUnknownBinary(): void
     {
-        self::assertSame(SetupCommand::EXIT_USAGE, $this->runCommand(['text-to-video']));
-        self::assertStringContainsString("Error: Unknown binary 'text-to-video'. Available: puller, text-to-image, text-to-text, image-to-text, speech-to-text, text-to-speech, image-to-image.", $this->contents($this->stderr));
+        self::assertSame(SetupCommand::EXIT_USAGE, $this->runCommand(['text-to-music']));
+        self::assertStringContainsString("Error: Unknown binary 'text-to-music'. Available: puller, text-to-image, text-to-text, image-to-text, speech-to-text, text-to-speech, image-to-image, text-to-video.", $this->contents($this->stderr));
     }
 
     public function testReportsFailedDownload(): void
