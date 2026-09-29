@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+# Stands in for the compiled jev runner: echoes its arguments on stderr and always picks the second of two options.
+# The question "fail" makes it fail.
+echo "args: $*" >&2
+
+question=""
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --question) question="$2"; shift 2 ;;
+        *) shift ;;
+    esac
+done
+
+if [ "$question" = "fail" ]; then
+    echo "[jev] Error: photo.jpg is not an image" >&2
+    exit 1
+fi
+
+echo "noise a library printed to stdout"
+echo '{"prediction": "second", "index": 1, "confidence": 0.75, "probabilities": [0.25, 0.75]}'
