@@ -23,6 +23,7 @@ with any matching model from Hugging Face.
 | 🗣️ | `text-to-speech`  | Read text aloud into an audio file               | `facebook/mms-tts-eng`                 |
 | 🎬 | `text-to-video`   | Generate a video from a text prompt              | `Wan-AI/Wan2.1-T2V-1.3B-Diffusers`     |
 | 🎞️ | `image-to-video`  | Animate an image into a video                    | `stabilityai/stable-video-diffusion-img2vid-xt` |
+| 🤔 | `jev`             | Answer a multiple-choice question about text, an image, audio or video | `akhilaaa3/Jev-Omni` |
 
 ## 🚀 Easy to start
 
@@ -82,6 +83,7 @@ vendor/bin/loves-ai setup text-to-speech   # optional: the speech synthesis runn
 vendor/bin/loves-ai setup image-to-image   # optional: the image enlarging and redrawing runner (a few hundred MB)
 vendor/bin/loves-ai setup text-to-video    # optional: the video generation runner (a few hundred MB)
 vendor/bin/loves-ai setup image-to-video   # optional: the image animation runner (a few hundred MB)
+vendor/bin/loves-ai setup jev              # optional: the multiple-choice decision runner (a few hundred MB)
 ```
 
 ```
@@ -118,6 +120,7 @@ Tasks (✅ = runner installed, run `setup <task>` for the others):
      image-to-text   Describe an image, or answer a question about it
      speech-to-text  Transcribe speech in an audio or video file
      text-to-speech  Read text aloud into an audio file
+     jev             Answer a question by choosing one of its options
 
 Run 'vendor/bin/loves-ai <command> --help' for a command's arguments and options.
 ```
@@ -752,6 +755,84 @@ Throws `ImageNotFoundException` when the image does not exist, `BinaryNotInstall
 `UnsupportedModelException` when the model is not a diffusers video pipeline, and `RunFailedException` when the run
 fails, e.g. when the model takes no prompt but one was given.
 
+## Answering multiple-choice questions
+
+JEV models are decision classifiers: give them a question and its options, and they return a probability for each
+option instead of writing an answer, so the result is always one of your options. The question can be about text
+(the *state*), an image, an audio file or a video. Useful for routing, moderation, yes/no checks and triage, where the
+answer must be one of a fixed set.
+
+Pull a JEV model first, e.g. `akhilaaa3/Jev-Omni`. It is a Gemma 4 12B model with a decision head (`head.pt` and
+`decision_config.json`); chat models without that head are rejected before starting, with an explanation. The model's
+own Python loader, `jev_omni.py`, is never run: the runner rebuilds the head from its weights alone.
+
+**Jev-Omni is large:** a 24 GB pull, and about as much free GPU or unified memory to run. Its authors test it on CUDA
+GPUs; on Apple Silicon it needs a Mac with 32 GB or more, and on a CPU a single question can take minutes. Decide in a
+queue job, not in a web request.
+
+### From the command line
+
+```bash
+vendor/bin/loves-ai pull akhilaaa3/Jev-Omni
+vendor/bin/loves-ai jev akhilaaa3/Jev-Omni "Has the meeting started?" Yes No --state="The meeting starts at 10 AM. It is now 9 AM."
+vendor/bin/loves-ai jev akhilaaa3/Jev-Omni "What is on the table?" "A cat" "A dog" "Nothing" --media=photo.jpg
+```
+
+```
+🤔 Weighing the options with akhilaaa3/Jev-Omni… Perfect time for a cup of tea and a cookie 🍪
+If you wish to see all logs, re-run the command with the "--debug" option.
+🎉 akhilaaa3/Jev-Omni chose: No (98.6%)
+      Yes    1.4%
+   👉 No    98.6%
+```
+
+| Option               | Meaning                                                                          |
+|----------------------|----------------------------------------------------------------------------------|
+| `--state=TEXT`       | What the question is about, as text                                              |
+| `--media=PATH`       | Image, audio or video file the question is about                                 |
+| `--modality=KIND`    | `image`, `audio` or `video` (default: told by the file's extension)              |
+| `--frames=N`         | Frames sampled evenly from a video (default: 16)                                 |
+| `--device=DEVICE`    | `cpu`, `cuda`, `mps`… (default: the best available)                              |
+| `--log-file=PATH`    | Append the runner's output to this file                                          |
+| `--debug`            | Show the runner's output while deciding                                          |
+
+Give 2 to 256 different options; the model answers best with up to 20. Audio is read up to its first 30 seconds, and
+decoded by the runner itself, as are videos, with no FFmpeg installation needed. Defaults come from `config/jev.php`
+(`log_file`).
+
+### From PHP
+
+```php
+use PhpLovesAi\Runner\Jev;
+
+// Finds the runner and the pulled model in the project's .local directory by itself.
+$jev = new Jev();
+
+$decision = $jev->decide(
+    model: 'akhilaaa3/Jev-Omni',
+    question: 'Has the meeting started?',
+    options: ['Yes', 'No'],
+    state: 'The meeting starts at 10 AM. It is now 9 AM.',
+);
+$decision->prediction;    // 'No'
+$decision->index;         // 1
+$decision->confidence;    // 0.986
+$decision->probabilities; // ['Yes' => 0.014, 'No' => 0.986]
+
+$mood = $jev->decide(
+    model: 'akhilaaa3/Jev-Omni',
+    question: 'How does the caller sound?',
+    options: ['Happy', 'Neutral', 'Upset'],
+    mediaPath: storage_path('app/call.m4a'),
+);
+```
+
+Throws `\InvalidArgumentException` for fewer than two options, duplicate options or an unknown modality,
+`MediaNotFoundException` when the media file does not exist, `BinaryNotInstalledException` when `setup jev` has not
+been run, `ModelNotFoundException` when the model was not pulled yet, `UnsupportedModelException` when the model has no
+decision head, and `RunFailedException` (with the runner's error output) when the run fails, e.g. when the media cannot
+be decoded.
+
 ## How it works
 
 The Composer package is tiny and holds only PHP code; the heavy parts live outside of it:
@@ -785,6 +866,7 @@ python/runners/text-to-speech/build.sh    # → python/runners/text-to-speech/di
 python/runners/image-to-image/build.sh    # → python/runners/image-to-image/dist/image-to-image-<os>-<arch>/
 python/runners/text-to-video/build.sh     # → python/runners/text-to-video/dist/text-to-video-<os>-<arch>/
 python/runners/image-to-video/build.sh    # → python/runners/image-to-video/dist/image-to-video-<os>-<arch>/
+python/runners/jev/build.sh               # → python/runners/jev/dist/jev-<os>-<arch>/
 python/package.sh                         # → python/release/*.tar.gz + *.sha256
 ```
 
@@ -812,6 +894,7 @@ python/              Python sources compiled into standalone binaries (not shipp
     image-to-text/   Describes images with transformers models
     speech-to-text/  Transcribes speech with transformers models
     text-to-speech/  Reads text aloud with transformers models
+    jev/             Answers multiple-choice questions with JEV decision classifiers
 src/
   Enum/              Model registry
   Binary/            Platform detection and installing (Installer) the prebuilt binaries
@@ -821,7 +904,7 @@ src/
   HuggingFace/       Credentials: the optional API key saved in .local/huggingface/credentials.json
   Process/           PHP wrapper that invokes the puller binary (ModelPuller)
   Runner/            One class per task running pulled models (TextToImage, ImageToImage, TextToVideo, ImageToVideo,
-                     TextToText, ImageToText, SpeechToText, TextToSpeech), sharing the Runner interface
+                     TextToText, ImageToText, SpeechToText, TextToSpeech, Jev), sharing the Runner interface
   Exception/         Package exceptions
 tests/
   Unit/

@@ -31,6 +31,8 @@ final class FakeProject
 
     public const FAKE_IMAGE_TO_VIDEO = __DIR__ . '/../Fixtures/fake-image-to-video';
 
+    public const FAKE_JEV = __DIR__ . '/../Fixtures/fake-jev';
+
     public readonly string $root;
 
     public readonly LocalStorage $storage;

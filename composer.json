@@ -1,6 +1,6 @@
 {
     "name": "php-loves-ai/multimodal-ai-runner",
-    "description": "Run AI models locally from PHP: text-to-image, image-to-image, text-to-text, image-to-text, speech-to-text, text-to-speech, text-to-video and image-to-video.",
+    "description": "Run AI models locally from PHP: text-to-image, image-to-image, text-to-text, image-to-text, speech-to-text, text-to-speech, text-to-video, image-to-video and multiple-choice decisions with JEV classifiers.",
     "type": "library",
     "license": "MIT",
     "keywords": [
@@ -17,6 +17,8 @@
         "text-to-speech",
         "text-to-video",
         "image-to-video",
+        "jev",
+        "classification",
         "transformers",
         "diffusers",
         "whisper",

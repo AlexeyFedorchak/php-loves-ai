@@ -38,6 +38,7 @@ final class Application
         ImageToTextCommand::class,
         SpeechToTextCommand::class,
         TextToSpeechCommand::class,
+        JevCommand::class,
     ];
 
     /** @var resource */

@@ -41,7 +41,7 @@ ERROR_NOT_FOUND = "not_found"  # the model does not exist, or is private and the
 # Weights for frameworks the runners do not bundle, and leftovers from training: never usable here.
 UNUSABLE_SUFFIXES = (
     ".h5", ".msgpack", ".onnx", ".onnx_data", ".tflite", ".pb", ".ot", ".pdparams", ".gguf", ".ckpt", ".mlmodel",
-    ".png", ".jpg", ".jpeg", ".gif", ".webp", ".mp4", ".mov", ".avi",
+    ".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".mp4", ".mov", ".avi",
 )
 UNUSABLE_NAMES = ("optimizer.pt", "optimizer.bin", "scheduler.pt", "training_args.bin", "trainer_state.json")
 

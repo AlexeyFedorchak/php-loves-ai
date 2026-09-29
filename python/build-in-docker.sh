@@ -34,7 +34,8 @@ docker run --rm --platform "$platform" \
             --exclude=./runners/text-to-speech/build --exclude=./runners/text-to-speech/dist \
             --exclude=./runners/image-to-image/build --exclude=./runners/image-to-image/dist \
             --exclude=./runners/text-to-video/build --exclude=./runners/text-to-video/dist \
-            --exclude=./runners/image-to-video/build --exclude=./runners/image-to-video/dist --exclude=./release \
+            --exclude=./runners/image-to-video/build --exclude=./runners/image-to-video/dist \
+            --exclude=./runners/jev/build --exclude=./runners/jev/dist --exclude=./release \
             -cf - . | tar -C /work -xf -
 
         /work/puller/build.sh
@@ -46,5 +47,6 @@ docker run --rm --platform "$platform" \
         /work/runners/image-to-image/build.sh
         /work/runners/text-to-video/build.sh
         /work/runners/image-to-video/build.sh
+        /work/runners/jev/build.sh
         /work/package.sh /out
     '

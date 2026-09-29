@@ -44,6 +44,7 @@ final class SetupCommand extends Command
                                image-to-image needed by `image-to-image` (a few hundred MB)
                                text-to-video  needed by `text-to-video` (a few hundred MB)
                                image-to-video needed by `image-to-video` (a few hundred MB)
+                               jev            needed by `jev` (a few hundred MB)
 
         Options:
           --token=KEY        Save this Hugging Face API key instead of asking for it

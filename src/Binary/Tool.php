@@ -18,6 +18,7 @@ enum Tool: string
     case ImageToImage = 'image-to-image';
     case TextToVideo = 'text-to-video';
     case ImageToVideo = 'image-to-video';
+    case Jev = 'jev';
 
     public function label(): string
     {
@@ -49,6 +50,7 @@ enum Tool: string
             self::ImageToImage => 'Transform an image: vendor/bin/loves-ai image-to-image <model> <image>',
             self::TextToVideo => 'Generate a video: vendor/bin/loves-ai text-to-video <model> "<prompt>"',
             self::ImageToVideo => 'Animate an image: vendor/bin/loves-ai image-to-video <model> <image>',
+            self::Jev => 'Answer a question: vendor/bin/loves-ai jev <model> "<question>" <option> <option>...',
         };
     }
 
@@ -65,6 +67,7 @@ enum Tool: string
             self::ImageToImage => 'enlarge or redraw images',
             self::TextToVideo => 'generate videos',
             self::ImageToVideo => 'animate images',
+            self::Jev => 'answer multiple-choice questions',
         };
     }
 
