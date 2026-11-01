@@ -39,11 +39,20 @@ ERROR_GATED = "gated"  # the model needs a key whose account accepted its terms
 ERROR_NOT_FOUND = "not_found"  # the model does not exist, or is private and the key (if any) has no access
 
 # Weights for frameworks the runners do not bundle, and leftovers from training: never usable here.
+# .armnn, .rknn and .mnn are the same weights compiled for one vendor's NPU, which no runner loads.
 UNUSABLE_SUFFIXES = (
-    ".h5", ".msgpack", ".onnx", ".onnx_data", ".tflite", ".pb", ".ot", ".pdparams", ".gguf", ".ckpt", ".mlmodel",
+    ".h5", ".msgpack", ".tflite", ".pb", ".ot", ".pdparams", ".gguf", ".ckpt", ".mlmodel",
+    ".armnn", ".rknn", ".mnn",
     ".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".mp4", ".mov", ".avi",
 )
 UNUSABLE_NAMES = ("optimizer.pt", "optimizer.bin", "scheduler.pt", "training_args.bin", "trainer_state.json")
+
+# ONNX graphs: a duplicate export next to torch weights, but the only weights an InsightFace pack
+# has, and those are what the face runner reads. Kept or skipped per repository, in files_to_skip.
+ONNX_SUFFIXES = (".onnx", ".onnx_data")
+
+# Weights the torch-based runners load. A repository that has any of these needs no ONNX copy.
+TORCH_SUFFIXES = (".safetensors", ".bin", ".pt", ".pth")
 
 # PyTorch weights, in the order the runners prefer them; a file is skipped when a preferred twin exists.
 DUPLICATE_SUFFIXES = (".bin", ".pt", ".pth")
@@ -128,6 +137,12 @@ def files_to_skip(names: list[str]) -> set[str]:
     """Picks the files of a repository the runners cannot or need not read."""
     available = set(names)
     skip = {name for name in names if is_unusable(name)}
+
+    # An ONNX graph next to torch weights is the same model exported again, so it is skipped. When
+    # ONNX is all a repository ships it is the model itself (the InsightFace packs the face runner
+    # reads), so it stays.
+    if any(name.lower().endswith(TORCH_SUFFIXES) and name not in skip for name in names):
+        skip.update(name for name in names if name.lower().endswith(ONNX_SUFFIXES))
 
     for name in names:
         if name in skip:
