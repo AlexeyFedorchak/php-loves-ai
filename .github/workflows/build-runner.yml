@@ -1,0 +1,147 @@
+# Builds chosen binaries on every supported platform and smoke-tests them, without publishing anything.
+#
+# This is the way to find out whether a runner survives PyInstaller on a platform you do not have, which for
+# the face runner means whether onnxruntime's native libraries get bundled correctly. The release workflow
+# builds everything and needs a release to attach to; this one builds only what you name.
+name: Build a runner
+
+on:
+  # A workflow_dispatch button only appears once the file is on the default branch. The push trigger
+  # is there so a runner can be checked from a branch first: push it as "ci/<anything>" and this runs
+  # with the defaults, no merge to main needed.
+  push:
+    branches: ['ci/**']
+  workflow_dispatch:
+    inputs:
+      targets:
+        description: 'Binaries to build, space separated (e.g. "face", or "puller face")'
+        required: true
+        default: face
+      smoke-test:
+        description: Load a real model and run it, not just --help
+        type: boolean
+        required: false
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: ${{ matrix.platform }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            platform: darwin-arm64
+          - os: ubuntu-latest
+            platform: linux-x86_64
+            docker-platform: linux/amd64
+          - os: ubuntu-24.04-arm
+            platform: linux-arm64
+            docker-platform: linux/arm64
+          - os: windows-latest
+            platform: windows-x86_64
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+
+      # Linux: built in Docker on an old glibc, so the binaries run on older distributions too.
+      - name: Build and package (Linux, in Docker)
+        if: runner.os == 'Linux'
+        run: python/build-in-docker.sh "${{ matrix.docker-platform }}" "$RUNNER_TEMP/release" ${{ inputs.targets || 'face' }}
+
+      - uses: actions/setup-python@v5
+        if: runner.os != 'Linux'
+        with:
+          python-version: '3.12'
+
+      - name: Build and package
+        if: runner.os != 'Linux'
+        env:
+          PYTHON: python
+        run: |
+          test "$(python/platform.sh)" = "${{ matrix.platform }}"
+          for target in ${{ inputs.targets || 'face' }}; do
+            if [ "$target" = puller ]; then
+              python/puller/build.sh
+            else
+              "python/runners/${target}/build.sh"
+            fi
+          done
+          python/package.sh "$RUNNER_TEMP/release"
+
+      - name: Report what was built
+        run: |
+          for target in ${{ inputs.targets || 'face' }}; do
+            asset="$RUNNER_TEMP/release/$target-${{ matrix.platform }}.tar.gz"
+            test -f "$asset"
+            test -f "$asset.sha256"
+            echo "$target: $(du -m "$asset" | cut -f1) MB"
+          done
+
+      # --help exercises argument parsing only; the imports that actually break are after it.
+      - name: Check each binary starts
+        run: |
+          for target in ${{ inputs.targets || 'face' }}; do
+            if [ "$target" = puller ]; then
+              binary="python/puller/dist/puller-${{ matrix.platform }}"
+            else
+              binary="python/runners/$target/dist/$target-${{ matrix.platform }}/$target-${{ matrix.platform }}"
+            fi
+            if [ "${{ runner.os }}" = Windows ]; then
+              binary="$binary.exe"
+            fi
+            echo "--- $target --help"
+            "$binary" --help > /dev/null
+          done
+
+      # The real check: load the ONNX graphs and run them. A generated image has no face in it, so the
+      # expected answer is zero faces — which still proves the native libraries loaded, the graph ran and
+      # the JSON contract held. No face photographs are downloaded into CI.
+      - name: Smoke-test the face runner on a real model
+        if: >-
+          ${{ (github.event_name == 'push' || inputs.smoke-test)
+              && contains(inputs.targets || 'face', 'face') }}
+        run: |
+          binary="python/runners/face/dist/face-${{ matrix.platform }}/face-${{ matrix.platform }}"
+          if [ "${{ runner.os }}" = Windows ]; then
+            binary="$binary.exe"
+          fi
+
+          # buffalo_s rather than buffalo_l: same layout, a third of the download.
+          mkdir -p "$RUNNER_TEMP/pack/detection" "$RUNNER_TEMP/pack/recognition"
+          base=https://huggingface.co/immich-app/buffalo_s/resolve/main
+          curl -sSL --fail "$base/detection/model.onnx"   -o "$RUNNER_TEMP/pack/detection/model.onnx"
+          curl -sSL --fail "$base/recognition/model.onnx" -o "$RUNNER_TEMP/pack/recognition/model.onnx"
+
+          python3 -m pip install --quiet --disable-pip-version-check Pillow
+          python3 - <<'PY'
+          import os
+          from PIL import Image
+          Image.new("RGB", (640, 480), (90, 110, 130)).save(os.path.join(os.environ["RUNNER_TEMP"], "blank.jpg"))
+          PY
+
+          echo "--- detector only"
+          out="$("$binary" --model "$RUNNER_TEMP/pack" --image "$RUNNER_TEMP/blank.jpg" --detect-only)"
+          echo "$out"
+          echo "$out" | grep -q '"count": 0'
+
+          echo "--- detector and recognizer"
+          out="$("$binary" --model "$RUNNER_TEMP/pack" --image "$RUNNER_TEMP/blank.jpg")"
+          echo "$out"
+          echo "$out" | grep -q '"faces": \[\]'
+
+          echo "--- a missing image must fail with exit 1, not a crash"
+          "$binary" --model "$RUNNER_TEMP/pack" --image "$RUNNER_TEMP/nope.jpg" && exit 1
+          echo "all smoke tests passed on ${{ matrix.platform }}"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.platform }}
+          path: ${{ runner.temp }}/release/*
+          retention-days: 7
