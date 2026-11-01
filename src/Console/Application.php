@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace PhpLovesAi\Console;
 
 use PhpLovesAi\Binary\Installer;
-use PhpLovesAi\Binary\Tool;
 use PhpLovesAi\Filesystem\LocalStorage;
 
 /**
@@ -39,6 +38,8 @@ final class Application
         SpeechToTextCommand::class,
         TextToSpeechCommand::class,
         JevCommand::class,
+        FaceCommand::class,
+        FaceMatchCommand::class,
     ];
 
     /** @var resource */
@@ -101,11 +102,6 @@ final class Application
      */
     private function writeOverview(): void
     {
-        $installed = [];
-        foreach (Tool::cases() as $tool) {
-            $installed[$tool->value] = $this->storage->isInstalled($tool);
-        }
-
         fwrite($this->stdout, sprintf(
             "🧰 php-loves-ai %s — run small AI models locally, without installing Python\n\nUsage: %s <command> [arguments] [options]\n\n",
             Installer::installedVersion(),
@@ -120,9 +116,11 @@ final class Application
                 fwrite($this->stdout, "\nTasks (✅ = runner installed, run `setup <task>` for the others):\n");
             }
 
+            $tool = $command::requiresTool();
+
             fwrite($this->stdout, sprintf(
                 "  %s %-{$width}s  %s\n",
-                ($installed[$name] ?? null) === true ? '✅' : '  ',
+                $tool !== null && $this->storage->isInstalled($tool) ? '✅' : '  ',
                 $name,
                 $command::describe(),
             ));

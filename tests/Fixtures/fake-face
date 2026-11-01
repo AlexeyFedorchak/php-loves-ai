@@ -1,0 +1,97 @@
+#!/usr/bin/env bash
+# Stands in for the compiled face runner: echoes its arguments on stderr and reports made-up faces.
+# An image named fail.jpg makes it fail; one named empty.jpg holds no face.
+echo "args: $*" >&2
+
+image=""
+compare=""
+threshold="0.4"
+detect_only=0
+no_embeddings=0
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --image) image="$2"; shift 2 ;;
+        --compare) compare="$2"; shift 2 ;;
+        --threshold) threshold="$2"; shift 2 ;;
+        --detect-only) detect_only=1; shift ;;
+        --no-embeddings) no_embeddings=1; shift ;;
+        *) shift ;;
+    esac
+done
+
+for path in "$image" "$compare"; do
+    if [ "$(basename "$path")" = "fail.jpg" ]; then
+        echo "[face] Error: UnidentifiedImageError: cannot identify image file" >&2
+        exit 1
+    fi
+done
+
+# face <id> <score> <box> — the parts the runner reports for one face.
+face() {
+    printf '{"box": [%s], "score": %s, "landmarks": [[130,100],[160,100],[145,115],[134,130],[157,130]]' "$3" "$2"
+    if [ "$detect_only" = "0" ]; then
+        printf ', "id": "%s"' "$1"
+        [ "$no_embeddings" = "0" ] && printf ', "embedding": [0.1, -0.2, 0.3]'
+    fi
+    printf '}'
+}
+
+ID_ONE="v1:256:3f8a21c4d9e07b15000000000000000000000000000000000000000000000000"
+ID_TWO="v1:256:7c1e03ba55d9f402000000000000000000000000000000000000000000000000"
+
+# empty_image <image> — whether this image is the one that holds no face.
+empty_image() {
+    [ "$(basename "$1")" = "empty.jpg" ]
+}
+
+# face_count <image> — how many faces the image holds. Kept separate from the JSON because a
+# function's output is read in a subshell, where anything it assigns is lost.
+face_count() {
+    if empty_image "$1"; then echo 0; else echo 2; fi
+}
+
+# faces_in <image> — the faces array for one image.
+faces_in() {
+    if empty_image "$1"; then
+        printf '[]'
+        return
+    fi
+
+    printf '['
+    face "$ID_ONE" 0.9731 "120, 84, 210, 196"
+    printf ', '
+    face "$ID_TWO" 0.8812 "310, 96, 384, 191"
+    printf ']'
+}
+
+echo "noise a library printed to stdout"
+
+if [ -z "$compare" ]; then
+    printf '{"model": "fake", "image": "%s", "count": %s, "faces": %s}\n' \
+        "$image" "$(face_count "$image")" "$(faces_in "$image")"
+    exit 0
+fi
+
+# first_face <image> — the one face a match uses, or null when the image holds none.
+first_face() {
+    if empty_image "$1"; then
+        printf 'null'
+        return
+    fi
+
+    face "$ID_ONE" 0.9731 "120, 84, 210, 196"
+}
+
+face_a="$(first_face "$image")"
+count_a="$(face_count "$image")"
+face_b="$(first_face "$compare")"
+count_b="$(face_count "$compare")"
+
+if [ "$face_a" = "null" ] || [ "$face_b" = "null" ]; then
+    printf '{"similarity": null, "same_person": false, "threshold": %s' "$threshold"
+else
+    same=$(awk -v s=0.7123 -v t="$threshold" 'BEGIN { print (s >= t) ? "true" : "false" }')
+    printf '{"similarity": 0.7123, "same_person": %s, "threshold": %s' "$same" "$threshold"
+fi
+printf ', "a": {"image": "%s", "count": %s, "face": %s}' "$image" "$count_a" "$face_a"
+printf ', "b": {"image": "%s", "count": %s, "face": %s}}\n' "$compare" "$count_b" "$face_b"

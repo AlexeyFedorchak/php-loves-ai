@@ -121,6 +121,8 @@ Tasks (✅ = runner installed, run `setup <task>` for the others):
      speech-to-text  Transcribe speech in an audio or video file
      text-to-speech  Read text aloud into an audio file
      jev             Answer a question by choosing one of its options
+  ✅ face            Find, count and fingerprint the faces in an image
+  ✅ face-match      Check whether two images show the same person
 
 Run 'vendor/bin/loves-ai <command> --help' for a command's arguments and options.
 ```
@@ -833,14 +835,174 @@ been run, `ModelNotFoundException` when the model was not pulled yet, `Unsupport
 decision head, and `RunFailedException` (with the runner's error output) when the run fails, e.g. when the media cannot
 be decoded.
 
+## Recognizing faces
+
+Four things, from one model pack: tell whether a picture has a face in it, count the faces, check whether two pictures
+show the same person, and turn each face into a short **face id** you can store in a database and match against later.
+
+Pull an InsightFace pack first. They hold two ONNX graphs — a detector that finds faces and their landmarks, and a
+recognizer that turns each aligned face into 512 numbers:
+
+| Model | Pull size | Notes |
+| --- | --- | --- |
+| `immich-app/buffalo_l` | ~182 MB | The default recommendation; what the numbers below were measured with |
+| `immich-app/buffalo_s` | ~113 MB | Smaller and faster, a little less accurate |
+| `immich-app/antelopev2` | ~360 MB | Larger; some report it finding fewer faces than `buffalo_l` |
+
+These are the InsightFace models, republished for [Immich](https://immich.app) in a layout the runner reads. Check the
+model card for the licence before shipping one in a product: InsightFace releases its pretrained models for
+**non-commercial research** use.
+
+**This runner needs no PyTorch.** It is onnxruntime, numpy and Pillow, so `setup face` downloads ~40 MB (115 MB
+unpacked) against 218 MB for `text-to-image`, and a photo with three faces takes about half a second on a CPU.
+
+> Faces are personal data almost everywhere. Storing face ids or embeddings for identifiable people brings GDPR, BIPA
+> and similar obligations with it, whatever the model licence says.
+
+### From the command line
+
+```bash
+vendor/bin/loves-ai setup face
+vendor/bin/loves-ai pull immich-app/buffalo_l
+
+vendor/bin/loves-ai face immich-app/buffalo_l crew.jpg
+vendor/bin/loves-ai face immich-app/buffalo_l crew.jpg --count
+vendor/bin/loves-ai face-match immich-app/buffalo_l passport.jpg selfie.jpg
+```
+
+```
+🙂 Looking for faces with immich-app/buffalo_l… Should be quick — no time for a whole cookie 🍪
+🎉 Found 3 faces in crew.jpg
+   👤 1  91.3% confident, 80×114 px at 201,254
+      v1:256:34ae1b70385ab1df212d044a4c36cd46421b2bc1cb5b80ae01fbf87709288745
+   👤 2  91.0% confident, 75×108 px at 426,117
+      v1:256:22bc1f64552ec40f8a1d5c9e3b7740d1e8a2f05b6c3d9417ab28e6f5103c7d82
+   👤 3  89.6% confident, 81×115 px at 657,266
+      v1:256:4a6e0df6c0617b2f94e8d13a5026cb8f7d41920e3b6a5c8df0e71248a93b6054
+```
+
+`--count` only runs the detector, which skips loading the 166 MB recognizer — use it when all you need is "is there a
+face here?".
+
+For a backend, `--json` prints one object and nothing else, so it pipes straight into your code:
+
+```bash
+vendor/bin/loves-ai face immich-app/buffalo_l crew.jpg --json --embeddings
+```
+
+```json
+{"model":"immich-app/buffalo_l","image":"crew.jpg","count":3,"faces":[
+  {"id":"v1:256:34ae1b70…","score":0.9125,"box":[201,254,281,368],
+   "landmarks":[[232,302],[268,303],[255,323],[229,335],[266,336]],
+   "embedding":[0.035172,0.021544,-0.029648, …]}]}
+```
+
+### From PHP
+
+```php
+use PhpLovesAi\Runner\Face;
+
+$face = new Face();
+
+$face->hasFace('immich-app/buffalo_l', storage_path('app/upload.jpg'));     // true
+$face->countFaces('immich-app/buffalo_l', storage_path('app/crew.jpg'));    // 3
+
+foreach ($face->analyze('immich-app/buffalo_l', storage_path('app/crew.jpg')) as $found) {
+    $found->id;         // "v1:256:34ae1b70…" — store this per face
+    $found->embedding;  // the 512 numbers it is derived from
+    $found->box;        // [left, top, right, bottom] in pixels
+    $found->score;      // 0.9125
+    $found->width();    // 80
+}
+```
+
+`hasFace()` and `countFaces()` only run the detector; `analyze()` also runs the recognizer. Pass
+`withEmbeddings: false` to get the ids without the 512 numbers.
+
+Matching two pictures:
+
+```php
+$match = $face->compare(
+    model: 'immich-app/buffalo_l',
+    imagePath: storage_path('app/passport.jpg'),
+    otherImagePath: storage_path('app/selfie.jpg'),
+    threshold: 0.45,
+);
+
+$match->samePerson;      // true
+$match->similarity;      // 0.6819
+$match->threshold;       // 0.45 — stored results still say what they meant
+$match->wasAmbiguous();  // true when either picture held more than one face
+```
+
+When a picture holds several faces, `compare()` uses the most confident one in each and
+`facesInA` / `facesInB` say how many there were.
+
+### Face ids, and how to compare them
+
+A face id is a *fingerprint*, not a primary key. It is a locality-sensitive hash of the embedding: similar faces get
+similar bit strings, so two photos of one person give two **different** ids that differ in only some of their bits.
+Never compare them with `===` — compare the distance:
+
+```php
+use PhpLovesAi\Runner\FaceId;
+
+FaceId::distance($rowA->face_id, $rowB->face_id);   // 68  -> same person
+FaceId::distance($rowA->face_id, $rowC->face_id);   // 109 -> someone else
+```
+
+Measured with `buffalo_l` at the default 256 bits:
+
+| Pair | Cosine similarity | Distance |
+| --- | --- | --- |
+| Same person, two different photos | 0.68 | 68 / 256 |
+| Same photo at ⅓ scale, JPEG quality 60 | 0.72 | 63 / 256 |
+| Same photo rotated 5°, or 35% brighter | 0.97 | 16–20 / 256 |
+| Two different people | 0.01–0.02 | 109–122 / 256 |
+
+So a cut-off around **90** separates them, and unrelated faces centre on half the bits (the expected distance is
+`bits × θ / π`, where θ is the angle between the embeddings). **Measure it on your own images before relying on it** —
+only you know what a wrong match costs. The same goes for `threshold`: `config/face.php` ships 0.40 as a starting
+point, not a safe default.
+
+Two ids only mean anything side by side when they came from the same model, the same `hash_bits` and the same hash
+version — `FaceId::distance()` refuses to compare ids that disagree, rather than returning a meaningless number.
+`hash_bits` lives in `config/face.php` rather than in each call for that reason: changing it invalidates every id you
+have stored.
+
+On the CPU provider ids are reproducible across machines: one photo hashed byte-identically on macOS arm64, Linux
+arm64 and Linux x86_64, so a stored id still matches after a move from a developer's Mac to a container on either
+chip, and a queue worker agrees with a web server. They are *not* identical across execution providers — CPU and
+CoreML came out a bit or two apart on the same image — which is one more reason to compare by distance, never
+equality.
+
+Fewer bits is a shorter string but a blunter one. At 64 bits the same-person and different-person distances overlap,
+which is why the default is 256 (a 71-character id, prefix included):
+
+```php
+$table->string('face_id', 72)->index();   // "v1:256:" + 64 hex characters
+```
+
+For an exact answer, keep the embedding too and compare that — `FaceId::similarity()` does it in PHP, and a vector
+column (pgvector, or any vector store) does it at scale. The usual shape is to shortlist candidates by id distance,
+then re-rank the shortlist by cosine similarity on the embeddings.
+
+`analyze()` throws `ImageNotFoundException` when the image does not exist, `BinaryNotInstalledException` when
+`setup face` has not been run, `ModelNotFoundException` when the model was not pulled, `UnsupportedModelException`
+when the model is not an InsightFace pack, `\InvalidArgumentException` for an unknown bit count or an out-of-range
+score, and `RunFailedException` (with the runner's error output) when the run itself fails. `compare()` additionally
+throws `NoFaceDetectedException` when either picture has no face in it, and `FaceId::distance()` throws
+`InvalidFaceIdException` for a malformed id or two that cannot be compared.
+
 ## How it works
 
 The Composer package is tiny and holds only PHP code; the heavy parts live outside of it:
 
 1. **Puller binary** — a Python program that downloads models from Hugging Face and saves them in the project.
-2. **Runner binaries** — one per task, each holding its own copy of PyTorch and the libraries that task needs. Within a
-   task, one runner serves many models: diffusers and transformers pick the right architecture from the model's own
-   files, so new models work without a new release.
+2. **Runner binaries** — one per task, each holding its own copy of the libraries that task needs: PyTorch for most,
+   and for `face` only onnxruntime, which is why it is a tenth of their size. Within a task, one runner serves many
+   models: diffusers, transformers and onnxruntime pick the right architecture from the model's own files, so new
+   models work without a new release.
 3. Both are compiled with PyInstaller into standalone programs, built per platform by GitHub Actions and attached to
    each GitHub release. `setup` downloads the ones matching the current OS, and the other commands find them
    automatically. **Nothing needs Python installed.**
@@ -895,6 +1057,7 @@ python/              Python sources compiled into standalone binaries (not shipp
     speech-to-text/  Transcribes speech with transformers models
     text-to-speech/  Reads text aloud with transformers models
     jev/             Answers multiple-choice questions with JEV decision classifiers
+    face/            Finds, counts, matches and fingerprints faces (onnxruntime, no torch)
 src/
   Enum/              Model registry
   Binary/            Platform detection and installing (Installer) the prebuilt binaries
@@ -904,7 +1067,8 @@ src/
   HuggingFace/       Credentials: the optional API key saved in .local/huggingface/credentials.json
   Process/           PHP wrapper that invokes the puller binary (ModelPuller)
   Runner/            One class per task running pulled models (TextToImage, ImageToImage, TextToVideo, ImageToVideo,
-                     TextToText, ImageToText, SpeechToText, TextToSpeech, Jev), sharing the Runner interface
+                     TextToText, ImageToText, SpeechToText, TextToSpeech, Jev, Face), sharing the Runner
+                     interface, plus FaceId for comparing stored face ids
   Exception/         Package exceptions
 tests/
   Unit/

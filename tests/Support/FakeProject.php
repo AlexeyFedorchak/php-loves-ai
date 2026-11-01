@@ -33,6 +33,8 @@ final class FakeProject
 
     public const FAKE_JEV = __DIR__ . '/../Fixtures/fake-jev';
 
+    public const FAKE_FACE = __DIR__ . '/../Fixtures/fake-face';
+
     public readonly string $root;
 
     public readonly LocalStorage $storage;
@@ -60,7 +62,8 @@ final class FakeProject
     /**
      * Creates a pulled model directory holding $files.
      *
-     * @param list<string> $files file names, relative to the model directory; created empty
+     * @param list<string> $files file names, relative to the model directory, which may name a subdirectory
+     *                            (e.g. "detection/model.onnx"); created empty
      */
     public function addModel(string $model, array $files = []): self
     {
@@ -68,7 +71,9 @@ final class FakeProject
         mkdir($dir, 0777, true);
 
         foreach ($files as $file) {
-            file_put_contents("{$dir}/{$file}", '');
+            $path = "{$dir}/{$file}";
+            is_dir(dirname($path)) || mkdir(dirname($path), 0777, true);
+            file_put_contents($path, '');
         }
 
         return $this;

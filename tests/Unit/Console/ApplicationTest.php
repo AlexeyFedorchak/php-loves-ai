@@ -103,7 +103,8 @@ final class ApplicationTest extends TestCase
 
         self::assertSame(
             "Error: unknown command 'text-to-music'. Available: setup, pull, text-to-image, image-to-image, "
-            . "text-to-video, image-to-video, text-to-text, image-to-text, speech-to-text, text-to-speech, jev.\n"
+            . "text-to-video, image-to-video, text-to-text, image-to-text, speech-to-text, text-to-speech, jev, "
+            . "face, face-match.\n"
             . "Run 'vendor/bin/loves-ai --help' to see what each one does.\n",
             $this->contents($this->stderr),
         );

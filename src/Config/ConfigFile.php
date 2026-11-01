@@ -58,4 +58,58 @@ final class ConfigFile
     {
         return ($this->values[$key] ?? null) === null ? null : $this->string($key);
     }
+
+    /**
+     * @param int $min smallest value the setting accepts
+     *
+     * @throws InvalidConfigException
+     */
+    public function int(string $key, int $min = PHP_INT_MIN): int
+    {
+        $value = $this->values[$key] ?? null;
+
+        if (!is_int($value) || $value < $min) {
+            throw InvalidConfigException::invalidValue(
+                $this->file,
+                $key,
+                $min === PHP_INT_MIN ? 'a whole number' : "a whole number of at least {$min}",
+            );
+        }
+
+        return $value;
+    }
+
+    /**
+     * Accepts a whole number too, so 1 may be written for 1.0.
+     *
+     * @throws InvalidConfigException
+     */
+    public function float(string $key, float $min = -PHP_FLOAT_MAX, float $max = PHP_FLOAT_MAX): float
+    {
+        $value = $this->values[$key] ?? null;
+
+        if ((!is_float($value) && !is_int($value)) || $value < $min || $value > $max) {
+            throw InvalidConfigException::invalidValue($this->file, $key, "a number between {$min} and {$max}");
+        }
+
+        return (float) $value;
+    }
+
+    /**
+     * One of $allowed, which keeps a typo in a setting from reaching the runner.
+     *
+     * @param list<int> $allowed
+     *
+     * @throws InvalidConfigException
+     */
+    public function intFrom(string $key, array $allowed): int
+    {
+        $value = $this->values[$key] ?? null;
+
+        if (!is_int($value) || !in_array($value, $allowed, true)) {
+            throw InvalidConfigException::invalidValue($this->file, $key, 'one of ' . implode(', ', $allowed));
+        }
+
+        return $value;
+    }
 }

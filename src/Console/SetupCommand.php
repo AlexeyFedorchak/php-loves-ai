@@ -45,6 +45,7 @@ final class SetupCommand extends Command
                                text-to-video  needed by `text-to-video` (a few hundred MB)
                                image-to-video needed by `image-to-video` (a few hundred MB)
                                jev            needed by `jev` (a few hundred MB)
+                               face           needed by `face` and `face-match` (~40 MB, needs no torch)
 
         Options:
           --token=KEY        Save this Hugging Face API key instead of asking for it
@@ -131,7 +132,7 @@ final class SetupCommand extends Command
         }
         foreach (Tool::cases() as $tool) {
             if ($tool->purpose() !== null && !in_array($tool, $tools, true) && !$storage->isInstalled($tool)) {
-                $this->writeLine("💡 Want to {$tool->purpose()} too? Run: {$tool->setupCommand()} (a few hundred MB)", self::GREY);
+                $this->writeLine("💡 Want to {$tool->purpose()} too? Run: {$tool->setupCommand()} ({$tool->downloadSize()})", self::GREY);
             }
         }
 

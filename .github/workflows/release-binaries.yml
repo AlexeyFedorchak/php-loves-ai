@@ -66,11 +66,12 @@ jobs:
           python/runners/text-to-video/build.sh
           python/runners/image-to-video/build.sh
           python/runners/jev/build.sh
+          python/runners/face/build.sh
           python/package.sh "$RUNNER_TEMP/release"
 
       - name: Check all assets were built
         run: |
-          for tool in puller text-to-image text-to-text image-to-text speech-to-text text-to-speech image-to-image text-to-video image-to-video jev; do
+          for tool in puller text-to-image text-to-text image-to-text speech-to-text text-to-speech image-to-image text-to-video image-to-video jev face; do
             test -f "$RUNNER_TEMP/release/$tool-${{ matrix.platform }}.tar.gz"
             test -f "$RUNNER_TEMP/release/$tool-${{ matrix.platform }}.tar.gz.sha256"
           done

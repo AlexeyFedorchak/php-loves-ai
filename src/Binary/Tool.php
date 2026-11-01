@@ -19,6 +19,7 @@ enum Tool: string
     case TextToVideo = 'text-to-video';
     case ImageToVideo = 'image-to-video';
     case Jev = 'jev';
+    case Face = 'face';
 
     public function label(): string
     {
@@ -51,6 +52,7 @@ enum Tool: string
             self::TextToVideo => 'Generate a video: vendor/bin/loves-ai text-to-video <model> "<prompt>"',
             self::ImageToVideo => 'Animate an image: vendor/bin/loves-ai image-to-video <model> <image>',
             self::Jev => 'Answer a question: vendor/bin/loves-ai jev <model> "<question>" <option> <option>...',
+            self::Face => 'Find faces: vendor/bin/loves-ai face <model> <image>',
         };
     }
 
@@ -68,6 +70,20 @@ enum Tool: string
             self::TextToVideo => 'generate videos',
             self::ImageToVideo => 'animate images',
             self::Jev => 'answer multiple-choice questions',
+            self::Face => 'find, count and match faces',
+        };
+    }
+
+    /**
+     * Rough size of the release asset, for a hint shown before a download. The face runner needs no
+     * torch, which is what makes the others big.
+     */
+    public function downloadSize(): string
+    {
+        return match ($this) {
+            self::Puller => '~17 MB',
+            self::Face => '~40 MB',
+            default => 'a few hundred MB',
         };
     }
 

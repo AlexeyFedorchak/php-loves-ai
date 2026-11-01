@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace PhpLovesAi\Console;
 
+use PhpLovesAi\Binary\Tool;
 use PhpLovesAi\Exception\BinaryNotInstalledException;
 use PhpLovesAi\Exception\LogFileNotWritableException;
 use PhpLovesAi\Exception\PhpLovesAiException;
@@ -86,6 +87,15 @@ abstract class Command
     final public static function commandName(): string
     {
         return static::NAME;
+    }
+
+    /**
+     * The binary this command needs, when it needs one; used to mark installed runners. Commands
+     * whose name is their binary's need no override.
+     */
+    public static function requiresTool(): ?Tool
+    {
+        return Tool::tryFrom(static::NAME);
     }
 
     /** One line describing the command, for the command list. */
