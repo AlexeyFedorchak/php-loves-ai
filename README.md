@@ -10,8 +10,8 @@
 ```
 
 **Run AI models locally from PHP.** Generate images, write and answer text, describe pictures, transcribe speech,
-read text aloud, enlarge photos and make short videos — on your own machine, from PHP code or the command line,
-with any matching model from Hugging Face.
+read text aloud, enlarge photos, make short videos and recognize faces — on your own machine, from PHP code or the
+command line, with any matching model from Hugging Face.
 
 |    | Task              | What it does                                     | Example model                          |
 |----|-------------------|--------------------------------------------------|----------------------------------------|
@@ -24,6 +24,8 @@ with any matching model from Hugging Face.
 | 🎬 | `text-to-video`   | Generate a video from a text prompt              | `Wan-AI/Wan2.1-T2V-1.3B-Diffusers`     |
 | 🎞️ | `image-to-video`  | Animate an image into a video                    | `stabilityai/stable-video-diffusion-img2vid-xt` |
 | 🤔 | `jev`             | Answer a multiple-choice question about text, an image, audio or video | `akhilaaa3/Jev-Omni` |
+| 🙂 | `face`            | Find, count and fingerprint the faces in a photo | `immich-app/buffalo_l`                 |
+| 🤝 | `face-match`      | Check whether two images show the same person    | `immich-app/buffalo_l`                 |
 
 ## 🚀 Easy to start
 
@@ -84,6 +86,7 @@ vendor/bin/loves-ai setup image-to-image   # optional: the image enlarging and r
 vendor/bin/loves-ai setup text-to-video    # optional: the video generation runner (a few hundred MB)
 vendor/bin/loves-ai setup image-to-video   # optional: the image animation runner (a few hundred MB)
 vendor/bin/loves-ai setup jev              # optional: the multiple-choice decision runner (a few hundred MB)
+vendor/bin/loves-ai setup face             # optional: the face runner (~40 MB, no PyTorch; face-match uses it too)
 ```
 
 ```
@@ -188,19 +191,27 @@ If you wish to see all logs, re-run the command with the "--debug" option.
 ### Only the files the runners can read
 
 Hugging Face repositories usually publish the same weights several times over, for PyTorch, TensorFlow, Flax and ONNX.
-The runners read PyTorch only, so everything else is downloaded for nothing. `pull` leaves those files out:
+The runners read PyTorch, plus ONNX where that is the only format a repository ships, so the rest is downloaded for
+nothing. `pull` leaves those files out:
 
 | Model                                  | Repository | Pulled   |
 |----------------------------------------|-----------:|---------:|
 | `openai/whisper-tiny`                  |    0.61 GB | **0.16 GB** |
 | `SfinOe/stable-diffusion-v1.5`         |   10.96 GB | **5.48 GB** |
 | `facebook/mms-tts-eng`                 |    0.29 GB | **0.15 GB** |
+| `immich-app/buffalo_l`                 |    0.36 GB | **0.18 GB** |
 | `nlpconnect/vit-gpt2-image-captioning` |    0.98 GB | 0.98 GB  |
 
-Skipped are weights for other frameworks (`.h5`, `.msgpack`, `.onnx`, `.gguf`, `.ckpt`), single-file copies of a
-diffusers pipeline, alternative versions such as `fp16` and `non_ema`, leftovers from training (`optimizer.pt`,
-`trainer_state.json`, `checkpoint-*`) and sample media. A `.bin` file is skipped **only** when the same repository
-also publishes it as `.safetensors`, so models that ship `.bin` alone — the last row above — are pulled untouched.
+Skipped are weights for other frameworks (`.h5`, `.msgpack`, `.gguf`, `.ckpt`, and `.armnn`, `.rknn`, `.mnn`, which
+are one vendor's NPU build of the same weights and no runner loads), single-file copies of a diffusers pipeline,
+alternative versions such as `fp16` and `non_ema`, leftovers from training (`optimizer.pt`, `trainer_state.json`,
+`checkpoint-*`) and sample media. A `.bin` file is skipped **only** when the same repository also publishes it as
+`.safetensors`, so models that ship `.bin` alone — the `vit-gpt2` row above — are pulled untouched.
+
+`.onnx` works the same way round: it is skipped next to PyTorch weights, where it is the same model exported a second
+time, and kept when it is all a repository has — which is what makes the InsightFace packs behind
+[`face`](#recognizing-faces) pullable. On `immich-app/buffalo_l` that keeps the 182 MB of `.onnx` and drops 175 MB of
+`.armnn` and `.rknn`.
 
 Pass `--all` to download the repository as it is, if a model ever needs a file these rules leave out.
 
@@ -1029,6 +1040,7 @@ python/runners/image-to-image/build.sh    # → python/runners/image-to-image/di
 python/runners/text-to-video/build.sh     # → python/runners/text-to-video/dist/text-to-video-<os>-<arch>/
 python/runners/image-to-video/build.sh    # → python/runners/image-to-video/dist/image-to-video-<os>-<arch>/
 python/runners/jev/build.sh               # → python/runners/jev/dist/jev-<os>-<arch>/
+python/runners/face/build.sh              # → python/runners/face/dist/face-<os>-<arch>/
 python/package.sh                         # → python/release/*.tar.gz + *.sha256
 ```
 
@@ -1036,8 +1048,14 @@ Linux binaries can be built from any Docker host (including a Mac): `python/buil
 `python/build-in-docker.sh linux/arm64` builds and packs them on an old glibc base, so they run on Debian 11+, Ubuntu
 20.04+ and RHEL 9+. The release workflow uses the same script.
 
+Name the binaries you want after the output directory to build only those: `python/build-in-docker.sh linux/arm64
+release face` takes minutes, where the torch-based runners take hours. `.github/workflows/build-runner.yml` does the
+same on all four platforms and publishes nothing — push a `ci/**` branch to find out whether a runner survives
+PyInstaller on a platform you do not have, including a smoke test that loads a real model.
+
 The runners bundle torch (plus diffusers or transformers, torchvision for image-to-text and PyAV with FFmpeg's
 libraries for the audio runners), so they are built as directories (~600–700 MB, ~210–220 MB packed) rather than single files; Linux builds use CPU-only torch to stay within GitHub's release asset size limit.
+`face` is the exception: onnxruntime, numpy and Pillow only, so it is ~115 MB built and ~40–50 MB packed.
 To test `setup` against local assets, serve `python/release` over HTTP and set `PHP_LOVES_AI_DOWNLOAD_URL` to its URL.
 
 ## Structure
